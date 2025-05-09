@@ -1,4 +1,7 @@
 #!/bin/bash
 #
-# post_create_command.sh is executed when the devcontainer is created
-make setup
+# post_create_command.sh hooks into the devcontainer 'postCreateCommand'
+#
+# - Runs inside the container once, after both onCreateCommand and updateContentCommand, and only when the container is first assigned to a user.
+# - It’s the last of the three creation hooks and can safely reference user‐specific secrets, credentials, or environment variables (e.g. installing packages from a private registry, initializing dotfiles). 
+#

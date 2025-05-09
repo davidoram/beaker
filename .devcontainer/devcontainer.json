@@ -16,5 +16,5 @@
             ]
         }
     },
-    "postCreateCommand": "make setup"
+    "postCreateCommand": "post_create_command.sh"
 }

@@ -7,7 +7,7 @@ setup:
 		jq
 	go install tool
 
-inital-tool-install:
+initial-tool-install:
 	go get -tool github.com/nats-io/natscli/nats@latest 
 	go get -tool github.com/rubenv/sql-migrate/...@latest
 	go get -tool github.com/santhosh-tekuri/jsonschema/cmd/jv@latest

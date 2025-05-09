@@ -16,6 +16,10 @@
             ]
         }
     },
-    "onCreateCommand": "on_create_command.sh",
-    "postCreateCommand": "post_create_command.sh"
+    "onCreateCommand": [
+        "on_create_command.sh"
+    ],
+    "postCreateCommand": [
+        "post_create_command.sh"
+    ]
 }

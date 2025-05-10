@@ -1,0 +1,25 @@
+{
+    "name": "Beaker project Dev Container",
+    "image": "mcr.microsoft.com/devcontainers/base:debian",
+    "features": {
+        "ghcr.io/devcontainers/features/go:1": { "version": "1.24.2" },
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+        "ghcr.io/itsmechlark/features/postgresql:1.6.1": {}
+    },
+    "customizations": {
+        "vscode": {
+            "settings": {},
+            "extensions": [
+                "ms-azuretools.vscode-docker",
+                "golang.Go",
+                "bierner.markdown-mermaid"
+            ]
+        }
+    },
+    "onCreateCommand": [
+        "./on_create_command.sh"
+    ],
+    "postCreateCommand": [
+        "./post_create_command.sh"
+    ]
+}

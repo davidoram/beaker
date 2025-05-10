@@ -17,9 +17,9 @@
         }
     },
     "onCreateCommand": [
-        "on_create_command.sh"
+        "./on_create_command.sh"
     ],
     "postCreateCommand": [
-        "post_create_command.sh"
+        "./post_create_command.sh"
     ]
 }

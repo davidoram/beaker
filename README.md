@@ -83,3 +83,54 @@ We are building a basic **Inventory API** that tracks the quantity of products u
   - Use [JSON Schema](https://json-schema.org/) to validate requests & responses
 - Define our API using the [OpenAPI](https://www.openapis.org/) standard.
 - Implement tests to verify that our code is working correctly.
+
+
+# Standards and Organisations
+
+This diagram shows some of the key stanadards that the system is using and dependencies between standards.
+
+```mermaid
+graph TD
+  %% Organizations
+  subgraph CNCF["Cloud Native Computing Foundation (CNCF)"]
+    NATS[NATS Protocol]
+    JetStream[JetStream]
+    NATSService[NATS Microservices API]
+    OpenTelemetry[OpenTelemetry]
+  end
+
+  subgraph MS["Microsoft"]
+    Devcontainers[Devcontainers / Codespaces]
+    Github
+  end
+
+  subgraph GPL["Open Source"]
+    Git
+  end
+
+  subgraph Google["Google"]
+    Go[Go Language]
+  end
+
+  subgraph IETF["Internet Engineering Task force"]
+    HTTP[HTTP - RFC 9110]
+    JSON[JSON - RFC 8259]
+  end
+  %% Other technologies
+  subgraph LinuxF["Linux Foundation"]
+    JSONSchema[JSON Schema - 2020-12]
+    OpenAPI[OpenAPI Specification - OAS 3.1]
+    Linux
+  end
+  
+  %% Connections
+  JSONSchema --> JSON
+  JSONSchema --> OpenAPI
+  OpenAPI -->|Uses| HTTP
+
+  NATS --> JetStream
+  NATS --> NATSService
+ 
+  Github -->|Implements|Git
+  Devcontainers -->|Runs on|Linux
+```

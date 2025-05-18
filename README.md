@@ -83,6 +83,7 @@ We are building a basic **Inventory API** that tracks the quantity of products u
   - Use [JSON Schema](https://json-schema.org/) to validate requests & responses
 - Define our API using the [OpenAPI](https://www.openapis.org/) standard.
 - Implement tests to verify that our code is working correctly.
+- Capture Telemetry using [Open Telemetry](https://github.com/grafana/docker-otel-lgtm/) standards
 
 
 # Standards and Organisations
@@ -104,8 +105,16 @@ graph TD
     Github
   end
 
-  subgraph GPL["Open Source"]
+  subgraph GLabs["Grafana Labs"]
+    Prometheus["Prometeus metrics"]
+    Tempo["Tempo traces"]
+    Loki["Loki logs"]
+    Pyroscope["Pyroscope profiling"]
+  end
+
+  subgraph GPL["Open Source Projects"]
     Git
+    Postgres
   end
 
   subgraph Google["Google"]
@@ -121,6 +130,7 @@ graph TD
     JSONSchema[JSON Schema - 2020-12]
     OpenAPI[OpenAPI Specification - OAS 3.1]
     Linux
+    OCI[Open Container Initiative]
   end
   
   %% Connections
@@ -132,5 +142,9 @@ graph TD
   NATS --> NATSService
  
   Github -->|Implements|Git
-  Devcontainers -->|Runs on|Linux
+  Devcontainers -->|Runs on|OCI
+  OCI -->|Runs on|Linux
+
+  OpenTelemetry-->|Implements|GLabs
+
 ```

@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: beaker_dev
+    ports:
+      - "5432:5432"
+  otel:
+    image: grafana/otel-lgtm
+    restart: unless-stopped
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "3000:3000"

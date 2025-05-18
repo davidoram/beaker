@@ -6,5 +6,12 @@
 # - It’s the last of the three creation hooks and can safely reference user‐specific secrets, credentials, or environment variables (e.g. installing packages from a private registry, initializing dotfiles). 
 #
 
+# Inject the preconfigured database connection
+mkdir -p ~/.config/DatabaseClient
+cp .devcontainer/dbclient.json ~/.config/DatabaseClient/dbclient.json
+
 # Lets ensure that we have the latest code from the remote repository
 git pull origin
+
+
+make start-docker-compose

@@ -1,0 +1,15 @@
+{
+  "connection": [
+    {
+      "name": "Local Postgres",
+      "client": "PostgreSQL",
+      "host": "localhost",
+      "port": 5432,
+      "user": "postgres",
+      "password": "password",
+      "database": "beaker_dev",
+      "ssh": false,
+      "ssl": false
+    }
+  ]
+}

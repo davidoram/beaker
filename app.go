@@ -1,26 +1,36 @@
 package main
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 type App struct {
-	Options Options
+	Options   Options
+	Telemetry *TelemetryProvider
 }
 
-func NewApp(opts Options) *App {
+func NewApp(opts Options, telemetry *TelemetryProvider) *App {
+
 	return &App{
-		Options: opts,
+		Options:   opts,
+		Telemetry: telemetry,
 	}
 }
 
 func (a *App) Start(ctx context.Context) bool {
-	// Here you would typically start your application logic, such as connecting to databases,
-	// initializing services, etc. For now, we'll just return true to indicate success.
+	a.Telemetry.LogApplicationStart()
 
 	// Wait for the context to be cancelled
 	select {
 	case <-ctx.Done():
 		// Context was cancelled, indicating a shutdown signal
+		fmt.Println("Shutting down application...")
+
+		// Log application shutdown
+		a.Telemetry.LogApplicationShutdown(ctx)
+		defer a.Telemetry.Shutdown(ctx)
+
 		return true
 	}
-	return true
 }

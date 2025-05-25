@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,8 +17,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize telemetry
+	telemetry, err := NewTelemetryProvider("beaker")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize telemetry: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Initialize the application
-	app := NewApp(opts)
+	app := NewApp(opts, telemetry)
 
 	// Create a context for the application and
 	// make it cancelled if a termination signal is received

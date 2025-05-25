@@ -1,6 +1,14 @@
-.PHONY: start-docker-compose
-start-docker-compose:
+
+.PHONY: docker-compose-down
+docker-compose-down:
+	docker-compose -f .devcontainer/docker-compose.yml down || true
+
+.PHONY: docker-compose-up
+docker-compose-up:
 	docker-compose -f .devcontainer/docker-compose.yml up -d
+
+.PHONY: restart-docker-compose
+restart-docker-compose: docker-compose-down docker-compose-up
 
 
 .PHONY: install-tools-apt-get
@@ -26,4 +34,14 @@ initial-tool-install:
 
 .PHONY: run
 run:
+	OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4317 \
+	OTEL_SERVICE_NAME=beaker \
+	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=development \
+	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+
+.PHONY: run-debug
+run-debug:
+	OTEL_EXPORTER_TYPE=stdout \
+	OTEL_SERVICE_NAME=beaker \
+	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=development \
 	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable 

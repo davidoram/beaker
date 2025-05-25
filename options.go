@@ -34,7 +34,7 @@ func ParseOptions(args []string) (Options, error) {
 		return Options{}, err
 	}
 	options := Options{
-		CredentialsFile: filepath.Join(homeDir, "credentials.json"),
+		CredentialsFile: filepath.Join(homeDir, "credentials.txt"),
 		PostgresURL:     "postgres://postgres:password@localhost:5432/beaket_dev",
 	}
 

@@ -1,4 +1,13 @@
 services:
+  app:
+    image: mcr.microsoft.com/devcontainers/base:debian
+    volumes:
+      - ..:/workspaces/beaker:cached
+    command: sleep infinity
+    network_mode: service:db # Allows the app container to access db on localhost
+    depends_on:
+      - db
+      - otel
   db:
     image: postgres:17
     restart: unless-stopped

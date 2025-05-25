@@ -24,16 +24,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // Ensure context is cancelled when main exits
 
-	if ctx == nil {
-		// If context creation fails, exit with an error code
-		os.Exit(1)
-	}
 	// Add a signal handler to gracefully handle termination signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-signalCh // Receive signal but don't need to use it
-		cancel()   // Cancel the context to signal graceful shutdown
+		os.Stdout.WriteString("Received termination signal, shutting down...\n")
+		cancel() // Cancel the context to signal graceful shutdown
 	}()
 
 	// Start the application

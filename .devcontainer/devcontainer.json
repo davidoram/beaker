@@ -1,10 +1,13 @@
 {
     "name": "Beaker project Dev Container",
-    "image": "mcr.microsoft.com/devcontainers/base:debian",
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "app", 
+    "workspaceFolder": "/workspaces/beaker",
     "features": {
         "ghcr.io/devcontainers/features/go:1": { "version": "1.24.2" },
         "ghcr.io/devcontainers/features/docker-in-docker:2": {}
     },
+    "forwardPorts": [5432, 4317, 4318, 3000],
     "customizations": {
         "vscode": {
             "settings": {},

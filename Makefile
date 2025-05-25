@@ -23,3 +23,7 @@ initial-tool-install:
 	go get -tool github.com/rubenv/sql-migrate/...@latest
 	go get -tool github.com/santhosh-tekuri/jsonschema/cmd/jv@latest
 	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+.PHONY: run
+run:
+	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable 

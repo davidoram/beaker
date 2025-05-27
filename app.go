@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 )
 
 type App struct {
@@ -19,18 +19,16 @@ func NewApp(opts Options, telemetry *TelemetryProvider) *App {
 }
 
 func (a *App) Start(ctx context.Context) bool {
-	a.Telemetry.LogApplicationStart()
 
+	_, span := a.Telemetry.tracerProvider.Tracer("").Start(ctx, "application_start")
+	span.End()
+
+	slog.InfoContext(ctx, "Application started")
 	// Wait for the context to be cancelled
 	select {
 	case <-ctx.Done():
 		// Context was cancelled, indicating a shutdown signal
-		fmt.Println("Shutting down application...")
-
-		// Log application shutdown
-		a.Telemetry.LogApplicationShutdown(ctx)
-		defer a.Telemetry.Shutdown(ctx)
-
+		slog.InfoContext(ctx, "Shutting down application...")
 		return true
 	}
 }

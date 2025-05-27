@@ -33,15 +33,22 @@ initial-tool-install:
 	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 
 .PHONY: run
-run:
+run: 
 	OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4317 \
+	OTEL_EXPORTER_OTLP_PROTOCOL=grpc \
 	OTEL_SERVICE_NAME=beaker \
 	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=development \
-	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+	OTEL_LOGS_EXPORTER=otlp \
+	OTEL_METRICS_EXPORTER=otlp \
+	OTEL_TRACES_EXPORTER=otlp \
+	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:password@localhost:5432/beaker_dev?sslmode=disable
 
 .PHONY: run-debug
 run-debug:
 	OTEL_EXPORTER_TYPE=stdout \
 	OTEL_SERVICE_NAME=beaker \
 	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=development \
-	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable 
+	OTEL_LOGS_EXPORTER=stdout \
+	OTEL_METRICS_EXPORTER=stdout \
+	OTEL_TRACES_EXPORTER=stdout \
+	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:password@localhost:5432/beaker_dev?sslmode=disable 

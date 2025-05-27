@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"golang.org/x/exp/slog"
 )
 
 func main() {
@@ -17,27 +19,32 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create a context for the application and
+	// make it cancelled if a termination signal is received
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Ensure context is cancelled when main exits
+
 	// Initialize telemetry
 	telemetry, err := NewTelemetryProvider("beaker")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize telemetry: %v\n", err)
 		os.Exit(1)
 	}
+	defer telemetry.Shutdown(ctx)
+
+	// Log application start
+	slog.InfoContext(ctx, "Application starting...")
+	// telemetry.LogApplicationStart(ctx)
 
 	// Initialize the application
 	app := NewApp(opts, telemetry)
-
-	// Create a context for the application and
-	// make it cancelled if a termination signal is received
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // Ensure context is cancelled when main exits
 
 	// Add a signal handler to gracefully handle termination signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-signalCh // Receive signal but don't need to use it
-		os.Stdout.WriteString("Received termination signal, shutting down...\n")
+		slog.InfoContext(ctx, "Received termination signal, shutting down...")
 		cancel() // Cancel the context to signal graceful shutdown
 	}()
 

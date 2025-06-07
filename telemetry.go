@@ -5,153 +5,129 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"time"
 
+	"github.com/google/uuid"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/log/global"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/log"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
-// TelemetryProvider manages the OpenTelemetry providers
-type TelemetryProvider struct {
-	tracerProvider *sdktrace.TracerProvider
-	serviceName    string
-	meter          metric.Meter
-}
+const (
+	TelemetryNameSpace = "github.com/davidoram/beaker"
+)
+
+var (
+	Tracer trace.Tracer
+	Meter  *sdkmetric.MeterProvider
+	Logger *log.LoggerProvider
+)
 
 // NewTelemetryProvider creates and configures an OpenTelemetry TracerProvider
-func NewTelemetryProvider(serviceName string) (*TelemetryProvider, error) {
+func NewTelemetryProvider(ctx context.Context, serviceName string) (func(context.Context), error) {
+
+	// Build a shutdown function
+	var shutdownFuncs []func(context.Context) error
+	shutdown := func(ctx context.Context) {
+		for _, fn := range shutdownFuncs {
+			_ = fn(ctx)
+		}
+		shutdownFuncs = nil
+	}
+
 	// Create a resource describing this application
-	res, err := resource.New(context.Background(),
+	res, err := resource.New(ctx,
+		resource.WithSchemaURL(semconv.SchemaURL),
+		resource.WithTelemetrySDK(),
+		resource.WithProcess(),
+		resource.WithOS(),
+		resource.WithContainer(),
+		resource.WithHost(),
 		resource.WithAttributes(
 			// Standard service resource attributes
-			semconv.ServiceName(serviceName),
+			semconv.ServiceName(getEnv("OTEL_SERVICE_NAME", "beaker")),
 			semconv.ServiceVersion("0.1.0"),
 			attribute.String("environment", getEnv("OTEL_ENVIRONMENT", "development")),
+			semconv.ServiceInstanceID(uuid.NewString()),
 		),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	// Create the trace exporter
-	exporter, err := createTraceExporter(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
-	}
+	// Set the global propagator to propagate W3C trace context and baggage
+	prop := propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
+	otel.SetTextMapPropagator(prop)
 
-	// Create a tracer provider with the exporter
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
+	// Create a tracer provider that exports traces via GRPC
+	// and uses the resource we created
+	traceExporter, err := otlptracegrpc.New(ctx)
+	if err != nil {
+		return nil, err
+	}
+	traceProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(traceExporter),
 		sdktrace.WithResource(res),
 	)
+	shutdownFuncs = append(shutdownFuncs, traceProvider.Shutdown)
+	otel.SetTracerProvider(traceProvider)
+	Tracer = traceProvider.Tracer(serviceName)
 
-	// Set the global trace provider
-	otel.SetTracerProvider(tp)
-
-	// Configure slog to send logs to OpenTelemetry
-	handler := otelslog.NewHandler(serviceName, otelslog.WithSource(true))
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
-
-	// Get a meter for metrics
-	meter := otel.Meter(serviceName)
-
-	return &TelemetryProvider{
-		tracerProvider: tp,
-		serviceName:    serviceName,
-		meter:          meter,
-	}, nil
-}
-
-// createTraceExporter creates an appropriate exporter based on environment configuration
-func createTraceExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
-	// Default to OTLP exporter connecting to the local collector
-	endpoint := getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
-
-	// Check if we should use OTLP or stdout exporter
-	exporterType := getEnv("OTEL_EXPORTER_TYPE", "otlp")
-
-	if exporterType == "stdout" {
-		// Use stdout exporter for local development or debugging
-		return stdouttrace.New(
-			stdouttrace.WithPrettyPrint(),
-		)
+	// Set the global meter provider
+	metricExporter, err := otlpmetricgrpc.New(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	// Use OTLP gRPC exporter for production use
-	return otlptracegrpc.New(
-		ctx,
-		otlptracegrpc.WithEndpoint(endpoint),
-		otlptracegrpc.WithInsecure(), // For dev environment; configure TLS for production
+	Meter = sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(
+			sdkmetric.NewPeriodicReader(
+				metricExporter,
+				sdkmetric.WithProducer(runtime.NewProducer()),
+			),
+		),
+		sdkmetric.WithResource(res),
 	)
-}
+	shutdownFuncs = append(shutdownFuncs, Meter.Shutdown)
+	otel.SetMeterProvider(Meter)
 
-// Shutdown cleanly shuts down the telemetry provider
-func (tp *TelemetryProvider) Shutdown(ctx context.Context) error {
-	// Create a timeout for shutdown
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	// Shutdown the tracer provider
-	if err := tp.tracerProvider.Shutdown(ctx); err != nil {
-		return fmt.Errorf("failed to shutdown tracer provider: %w", err)
+	// Create a logger provider that uses OpenTelemetry
+	logExporter, err := otlploggrpc.New(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	Logger = log.NewLoggerProvider(
+		log.WithProcessor(log.NewBatchProcessor(logExporter)),
+		log.WithResource(res),
+	)
+
+	// Create new logger and set it as the default logger
+	slog.SetDefault(otelslog.NewLogger(serviceName, otelslog.WithLoggerProvider(Logger)))
+	global.SetLoggerProvider(Logger)
+
+	shutdownFuncs = append(shutdownFuncs, Logger.Shutdown)
+
+	err = runtime.Start(runtime.WithMeterProvider(Meter))
+	if err != nil {
+		return shutdown, err
+	}
+	return shutdown, nil
 }
-
-// // LogApplicationStart logs a standard application startup event
-// func (tp *TelemetryProvider) LogApplicationStart(ctx context.Context) {
-// 	// Log the application start event
-// 	slog.InfoContext(ctx, "Application started",
-// 		slog.String("event", "application_start"),
-// 		slog.String("service.name", tp.serviceName),
-// 		slog.Time("timestamp", time.Now()),
-// 	)
-
-// 	// Create a span for application startup
-// 	tracer := otel.Tracer(tp.serviceName)
-// 	_, span := tracer.Start(ctx, "application_start")
-// 	span.SetAttributes(
-// 		attribute.String("event", "application_start"),
-// 		attribute.String("service.name", tp.serviceName),
-// 	)
-// 	span.End()
-
-// 	// Record a metric for application start
-// 	counter, _ := tp.meter.Int64Counter("application.starts")
-// 	counter.Add(ctx, 1, attribute.String("service.name", tp.serviceName))
-// }
-
-// // LogApplicationShutdown logs a standard application shutdown event
-// func (tp *TelemetryProvider) LogApplicationShutdown(ctx context.Context) {
-// 	// Log the application shutdown event
-// 	slog.InfoContext(ctx, "Application shutting down",
-// 		slog.String("event", "application_shutdown"),
-// 		slog.String("service.name", tp.serviceName),
-// 		slog.Time("timestamp", time.Now()),
-// 	)
-
-// 	// Create a span for application shutdown
-// 	tracer := otel.Tracer(tp.serviceName)
-// 	_, span := tracer.Start(ctx, "application_shutdown")
-// 	span.SetAttributes(
-// 		attribute.String("event", "application_shutdown"),
-// 		attribute.String("service.name", tp.serviceName),
-// 	)
-// 	span.End()
-
-// 	// Record a metric for application shutdown
-// 	counter, _ := tp.meter.Int64Counter("application.shutdowns")
-// 	counter.Add(ctx, 1, attribute.String("service.name", tp.serviceName))
-// }
 
 // Helper function to get environment variable with default fallback
 func getEnv(key, defaultValue string) string {

@@ -25,19 +25,19 @@ func main() {
 	defer cancel() // Ensure context is cancelled when main exits
 
 	// Initialize telemetry
-	telemetry, err := NewTelemetryProvider("beaker")
+	shutdown, err := NewTelemetryProvider(ctx, "beaker")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize telemetry: %v\n", err)
 		os.Exit(1)
 	}
-	defer telemetry.Shutdown(ctx)
+	defer shutdown(ctx) // Ensure telemetry is shut down when main exits
 
 	// Log application start
-	slog.InfoContext(ctx, "Application starting...")
+	slog.Info("Application starting...")
 	// telemetry.LogApplicationStart(ctx)
 
 	// Initialize the application
-	app := NewApp(opts, telemetry)
+	app := NewApp(opts)
 
 	// Add a signal handler to gracefully handle termination signals
 	signalCh := make(chan os.Signal, 1)

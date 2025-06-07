@@ -5,7 +5,7 @@ docker-compose-down:
 
 .PHONY: docker-compose-up
 docker-compose-up:
-	docker-compose -f .devcontainer/docker-compose.yml up -d
+	NEW_RELIC_API_KEY=$${NEW_RELIC_API_KEY:-dummy-key} docker-compose -f .devcontainer/docker-compose.yml up -d
 
 .PHONY: restart-docker-compose
 restart-docker-compose: docker-compose-down docker-compose-up
@@ -33,7 +33,7 @@ initial-tool-install:
 	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 
 .PHONY: run
-run: 
+run: docker-compose-up
 	OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4317 \
 	OTEL_EXPORTER_OTLP_PROTOCOL=grpc \
 	OTEL_SERVICE_NAME=beaker \
@@ -41,7 +41,8 @@ run:
 	OTEL_LOGS_EXPORTER=otlp \
 	OTEL_METRICS_EXPORTER=otlp \
 	OTEL_TRACES_EXPORTER=otlp \
-	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:password@localhost:5432/beaker_dev?sslmode=disable
+	OTEL_TRACES_SAMPLER=parentbased_always_on \
+	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:password@localhost:5433/beaker_dev?sslmode=disable
 
 .PHONY: run-debug
 run-debug:
@@ -51,4 +52,4 @@ run-debug:
 	OTEL_LOGS_EXPORTER=stdout \
 	OTEL_METRICS_EXPORTER=stdout \
 	OTEL_TRACES_EXPORTER=stdout \
-	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:password@localhost:5432/beaker_dev?sslmode=disable 
+	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:password@localhost:5433/beaker_dev?sslmode=disable 

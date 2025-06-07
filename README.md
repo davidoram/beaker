@@ -98,18 +98,12 @@ graph TD
     JetStream[JetStream]
     NATSService[NATS Microservices API]
     OpenTelemetry[OpenTelemetry]
+    NewRelic[NewRelic]
   end
 
   subgraph MS["Microsoft"]
     Devcontainers[Devcontainers / Codespaces]
     Github
-  end
-
-  subgraph GLabs["Grafana Labs"]
-    Prometheus["Prometeus metrics"]
-    Tempo["Tempo traces"]
-    Loki["Loki logs"]
-    Pyroscope["Pyroscope profiling"]
   end
 
   subgraph GPL["Open Source Projects"]
@@ -145,6 +139,6 @@ graph TD
   Devcontainers -->|Runs on|OCI
   OCI -->|Runs on|Linux
 
-  OpenTelemetry-->|Implements|GLabs
+  OpenTelemetry-->|Implements|NewRelic
 
 ```

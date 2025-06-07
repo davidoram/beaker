@@ -1,0 +1,39 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: "0.0.0.0:4318"
+      grpc:
+        endpoint: "0.0.0.0:4317"
+
+exporters:
+  otlphttp:
+    endpoint: "https://otlp.nr-data.net"
+    headers:
+      api-key: "${env:NEW_RELIC_API_KEY}"
+  debug:
+    verbosity: detailed
+
+processors:
+  batch: {}
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1000
+    spike_limit_mib: 200
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, memory_limiter]
+      exporters: [debug, otlphttp]
+
+    metrics:
+      receivers: [otlp]
+      processors: [batch, memory_limiter]
+      exporters: [debug, otlphttp]
+
+    logs:
+      receivers: [otlp]
+      processors: [batch, memory_limiter]
+      exporters: [debug, otlphttp]

@@ -1,4 +1,13 @@
 services:
+  app:
+    image: mcr.microsoft.com/devcontainers/base:debian
+    volumes:
+      - ..:/workspaces/beaker:cached
+    command: sleep infinity
+    network_mode: service:db # Allows the app container to access db on localhost
+    depends_on:
+      - db
+      - otel
   db:
     image: postgres:17
     restart: unless-stopped
@@ -7,11 +16,13 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: beaker_dev
     ports:
-      - "5432:5432"
+      - "5433:5432"
   otel:
-    image: grafana/otel-lgtm
+    image: otel/opentelemetry-collector:0.127.0
     restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ../otel-collector.yaml:/etc/otel-collector-config.yaml
     ports:
-      - "4317:4317"
-      - "4318:4318"
-      - "3000:3000"
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP

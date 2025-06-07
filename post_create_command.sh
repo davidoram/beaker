@@ -12,6 +12,3 @@ cp .devcontainer/dbclient.json ~/.config/DatabaseClient/dbclient.json
 
 # Lets ensure that we have the latest code from the remote repository
 git pull origin
-
-
-make start-docker-compose

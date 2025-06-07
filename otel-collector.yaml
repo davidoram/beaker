@@ -8,9 +8,9 @@ receivers:
 
 exporters:
   otlphttp:
-    endpoint: "https://otlp.nr-data.net"
+    endpoint: https://otlp.nr-data.net
     headers:
-      api-key: "${env:NEW_RELIC_API_KEY}"
+      api-key: ${env:NEW_RELIC_API_KEY}
   debug:
     verbosity: detailed
 

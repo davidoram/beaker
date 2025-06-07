@@ -21,6 +21,8 @@ services:
     image: otel/opentelemetry-collector:0.127.0
     restart: unless-stopped
     command: ["--config=/etc/otel-collector-config.yaml"]
+    environment:
+      - NEW_RELIC_API_KEY=${NEW_RELIC_API_KEY}
     volumes:
       - ../otel-collector.yaml:/etc/otel-collector-config.yaml
     ports:

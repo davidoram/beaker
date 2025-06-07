@@ -75,7 +75,10 @@ func NewTelemetryProvider(ctx context.Context, serviceName string) (func(context
 
 	// Create a tracer provider that exports traces via GRPC
 	// and uses the resource we created
-	traceExporter, err := otlptracegrpc.New(ctx)
+	traceExporter, err := otlptracegrpc.New(ctx,
+		otlptracegrpc.WithEndpoint("localhost:4317"),
+		otlptracegrpc.WithInsecure(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +91,10 @@ func NewTelemetryProvider(ctx context.Context, serviceName string) (func(context
 	Tracer = traceProvider.Tracer(serviceName)
 
 	// Set the global meter provider
-	metricExporter, err := otlpmetricgrpc.New(ctx)
+	metricExporter, err := otlpmetricgrpc.New(ctx,
+		otlpmetricgrpc.WithEndpoint("localhost:4317"),
+		otlpmetricgrpc.WithInsecure(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +112,10 @@ func NewTelemetryProvider(ctx context.Context, serviceName string) (func(context
 	otel.SetMeterProvider(Meter)
 
 	// Create a logger provider that uses OpenTelemetry
-	logExporter, err := otlploggrpc.New(ctx)
+	logExporter, err := otlploggrpc.New(ctx,
+		otlploggrpc.WithEndpoint("localhost:4317"),
+		otlploggrpc.WithInsecure(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -119,6 +128,8 @@ func NewTelemetryProvider(ctx context.Context, serviceName string) (func(context
 	// Create new logger and set it as the default logger
 	slog.SetDefault(otelslog.NewLogger(serviceName, otelslog.WithLoggerProvider(Logger)))
 	global.SetLoggerProvider(Logger)
+
+	slog.Info("OpenTelemetry setup complete")
 
 	shutdownFuncs = append(shutdownFuncs, Logger.Shutdown)
 

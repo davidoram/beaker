@@ -2,9 +2,22 @@ package main
 
 import (
 	"context"
-	"log/slog"
 
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+)
+
+const (
+	name = "beaker"
+)
+
+var (
+	tracer    = otel.Tracer(name)
+	meter     = otel.Meter(name)
+	logger    = otelslog.NewLogger(name)
+	callCount metric.Int64Counter
 )
 
 type App struct {
@@ -20,21 +33,15 @@ func NewApp(opts Options) *App {
 
 func (a *App) Start(ctx context.Context) bool {
 
-	for i := 0; i < 100; i++ {
-
-		// Test span to check if telemetry is working
-		ctx, span := Tracer.Start(ctx, "application startup", trace.WithSpanKind(trace.SpanKindServer))
-		slog.InfoContext(ctx, "Application started")
-		span.End()
-	}
-	println("Application started successfully")
+	// Test span to check if telemetry is working
+	ctx, span := tracer.Start(ctx, "application startup", trace.WithSpanKind(trace.SpanKindServer))
+	logger.InfoContext(ctx, "Application started")
+	span.End()
 
 	// Wait for the context to be cancelled
 	select {
 	case <-ctx.Done():
-		println("Shutdown signal received, exiting application...")
-		// Context was cancelled, indicating a shutdown signal
-		slog.InfoContext(ctx, "Shutting down application...")
+		logger.InfoContext(ctx, "Shutting down application...")
 		return true
 	}
 }

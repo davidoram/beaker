@@ -33,7 +33,7 @@ func main() {
 	defer shutdown(ctx) // Ensure telemetry is shut down when main exits
 
 	// Log application start
-	slog.Info("Application starting...")
+	slog.InfoContext(ctx, "Telemetry initialized")
 	// telemetry.LogApplicationStart(ctx)
 
 	// Initialize the application

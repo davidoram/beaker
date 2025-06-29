@@ -1,7 +1,5 @@
 {
     "name": "Beaker project Dev Container",
-    "dockerComposeFile": "docker-compose.yml",
-    "service": "app", 
     "workspaceFolder": "/workspaces/beaker",
     "features": {
         "ghcr.io/devcontainers/features/go:1": { "version": "1.24.2" },

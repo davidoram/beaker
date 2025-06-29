@@ -1,7 +1,7 @@
 
 .PHONY: docker-compose-down
 docker-compose-down:
-	docker-compose -f .devcontainer/docker-compose.yml down || true
+	docker-compose -f .devcontainer/docker-compose.yml down  --remove-orphans || true
 
 .PHONY: docker-compose-up
 docker-compose-up:
@@ -32,24 +32,20 @@ initial-tool-install:
 	go get -tool github.com/santhosh-tekuri/jsonschema/cmd/jv@latest
 	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 
-.PHONY: run
-run: docker-compose-up
-	OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4317 \
-	OTEL_EXPORTER_OTLP_PROTOCOL=grpc \
-	OTEL_SERVICE_NAME=beaker \
-	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=development \
-	OTEL_LOGS_EXPORTER=otlp \
-	OTEL_METRICS_EXPORTER=otlp \
-	OTEL_TRACES_EXPORTER=otlp \
-	OTEL_TRACES_SAMPLER=parentbased_always_on \
-	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:password@localhost:5433/beaker_dev?sslmode=disable
+.PHONY: build
+build: 
+	mkdir -p bin
+	go build -o bin/beaker $(shell ls *.go | grep -v '_test.go')
 
-.PHONY: run-debug
-run-debug:
-	OTEL_EXPORTER_TYPE=stdout \
+.PHONY: run
+run: build
 	OTEL_SERVICE_NAME=beaker \
-	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=development \
-	OTEL_LOGS_EXPORTER=stdout \
-	OTEL_METRICS_EXPORTER=stdout \
-	OTEL_TRACES_EXPORTER=stdout \
-	go run $(shell ls *.go | grep -v '_test.go') --credentials credentials.txt --postgres postgres://postgres:password@localhost:5433/beaker_dev?sslmode=disable 
+	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=codespace \
+	OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \
+	OTEL_EXPORTER_OTLP_HEADERS=api-key=${NEW_RELIC_API_KEY} \
+	OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095 \
+	OTEL_EXPORTER_OTLP_COMPRESSION=gzip \
+	OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
+	OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta \
+	bin/beaker --credentials credentials.txt --postgres "postgres://postgres:password@db:5432/beaker_dev?sslmode=disable"
+

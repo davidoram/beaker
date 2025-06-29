@@ -14,11 +14,15 @@ Beaker is a demonstration project that shows how to build a production-ready mic
 
 # High-Level Architecture
 
-The system uses a modular microservice approach with NATS as the communication backbone. Each service registers itself using NATS Microservices API and communicates asynchronously via JetStream or synchronously through service requests.
+The system uses a modular microservice approach with NATS as the communication backbone. Each service registers itself using NATS Microservices API and communicates asynchronously via JetStream or synchronously through service requests. The Microservices store data persistently in the Postgres relational database.  We send telemetry information containing real-time behaviour of the system through to the [New Relic](https://newrelic.com) service.
 
 ```mermaid
 flowchart TD
-    A["Client (HTTP)"]
+    subgraph "API callers"
+      A["Client (HTTP protocol)"]
+      B["Client (NATS protocol)"]
+      EC["Event consumer"]
+    end
     subgraph "Synadia hosted NATS"
         N0["HTTP Gateway"]
         N2["Core NATS"]
@@ -27,14 +31,18 @@ flowchart TD
     subgraph "Codespace"
         C["Inventory service"]
         D["Postgres database"]
-        E["Open telemetry"]
     end
-    A --> |API request| N0
-    N0 -->|Forward request| N2
-    N2 -->|Service Request| C
-    C -->|Read Write| D
-    C -->|Stream Publish| N1
-    C -->|Logs and traces| E
+    subgraph "New Relic"
+        E["Open telemetry provider"]
+    end
+    A --> |HTTP API request| N0
+    N0 -->|forward request| N2
+    N2 -->|forward request| C
+    B --> |NATS API request| N2
+    C -->|store data| D
+    C -->|publish changes as events| N1
+    N1 -->|send events| EC
+    C -->|Logs,traces,metrics| E
 ```
 
 #  System Goals

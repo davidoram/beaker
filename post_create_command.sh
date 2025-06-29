@@ -12,3 +12,11 @@ cp .devcontainer/dbclient.json ~/.config/DatabaseClient/dbclient.json
 
 # Lets ensure that we have the latest code from the remote repository
 git pull origin
+
+
+# Wait for the docker server to be ready
+while ! docker info > /dev/null 2>&1; do
+  echo "Waiting for Docker to be ready..."
+  sleep 5
+done
+make restart-docker-compose

@@ -5,15 +5,13 @@
         "ghcr.io/devcontainers/features/go:1": { "version": "1.24.2" },
         "ghcr.io/devcontainers/features/docker-in-docker:2": {}
     },
-    "forwardPorts": [5432, 4317, 4318, 3000],
+    "forwardPorts": [5432],
     "customizations": {
         "vscode": {
             "settings": {},
             "extensions": [
-                "ms-azuretools.vscode-docker",
                 "golang.Go",
-                "bierner.markdown-mermaid",
-                "cweijan.vscode-database-client2"
+                "bierner.markdown-mermaid"
             ]
         }
     },

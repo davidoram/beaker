@@ -8,11 +8,21 @@
 
 # Lets ensure that we have the latest code from the remote repository
 git pull origin
+echo "Code updated from remote repository."
 
 
-# Wait for the docker server to be ready
-while ! docker info > /dev/null 2>&1; do
-  echo "Waiting for Docker to be ready..."
-  sleep 5
+# Wait for Docker socket to appear
+while [ ! -S /var/run/docker.sock ]; do
+    echo "Waiting for Docker socket..."
+    sleep 1
 done
+
+# Check if Docker responds
+until docker version >/dev/null 2>&1; do
+    echo "Waiting for Docker daemon to be ready..."
+    sleep 1
+done
+echo "Docker daemon is ready!"
+
 make restart-docker-compose
+echo "post_create_command.sh completed successfully."

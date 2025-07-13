@@ -31,6 +31,7 @@ initial-tool-install:
 	go get -tool github.com/rubenv/sql-migrate/...@latest
 	go get -tool github.com/santhosh-tekuri/jsonschema/cmd/jv@latest
 	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+	go get -tool github.com/equinix-labs/otel-cli@latest
 
 .PHONY: build
 build: 

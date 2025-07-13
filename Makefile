@@ -27,11 +27,11 @@ install-tools-go:
 setup: install-tools-apt-get install-tools-go 
 
 initial-tool-install:
-	go get -tool github.com/nats-io/natscli/nats@latest 
-	go get -tool github.com/rubenv/sql-migrate/...@latest
-	go get -tool github.com/santhosh-tekuri/jsonschema/cmd/jv@latest
-	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-	go get -tool github.com/equinix-labs/otel-cli@latest
+	go get -tool github.com/nats-io/natscli/nats@v0.2.3 
+	go get -tool github.com/rubenv/sql-migrate/...@v1.8.0
+	go get -tool github.com/santhosh-tekuri/jsonschema/cmd/jv@v0.7.0
+	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
+	go get -tool github.com/equinix-labs/otel-cli@v0.4.5
 
 .PHONY: build
 build: 

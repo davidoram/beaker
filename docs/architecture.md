@@ -77,7 +77,7 @@ We are building a basic **Inventory API** that tracks the quantity of products u
   - Use [JSON Schema](https://json-schema.org/) to validate requests & responses
 - Define our API using the [OpenAPI](https://www.openapis.org/) standard.
 - Implement tests to verify that our code is working correctly.
-- Capture Telemetry using [Open Telemetry](https://github.com/grafana/docker-otel-lgtm/) standards
+- Capture Telemetry using [Open Telemetry](https://opentelemetry.io) standards
 
 
 # Standards and Organisations

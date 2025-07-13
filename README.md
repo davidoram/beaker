@@ -15,3 +15,4 @@ Each episode covers one of the following topics
 
 - [High Level architecture](./docs/architecture.md)
 - [Devlopment environment](./docs/dev-environment.md)
+- [Open Telemetry Setup](./docs/otel.md)

@@ -1,0 +1,7 @@
+version: "2"
+sql: 
+- queries: query.sql
+  engine: postgresql
+  database:
+    uri: postgresql://postgres:password@localhost:5432/beaker_dev?sslmode=disable
+

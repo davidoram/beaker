@@ -87,6 +87,6 @@ flowchart TD
     B6 -->|📤 Processed Data| C[🟢 New Relic Backend]
 ```
 
-As you can see the `otel-collector` provides a level of indirection, that gives us more control.  For example if our API gets ver popular we might need to rate limit and sample the traces because it would cost too much to send them all.  
+As you can see the `otel-collector` provides a level of indirection, that gives us more control.  For example if our API gets **very** popular, we might need to rate limit and sample the traces because it would cost too much to send them all.  
 
 This reminds us of a well known saying ["All problems in computer science can be solved by another level of indirection."](https://en.wikipedia.org/wiki/David_Wheeler_(computer_scientist)#Quotes).

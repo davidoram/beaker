@@ -1,11 +1,12 @@
 version: "2"
 sql: 
-- queries: query.sql
+- schema: "db-migrations"
+  queries: query.sql
   engine: postgresql
-  database:
-    uri: "postgres://postgres:password@localhost:5432/beaker_development?sslmode=disable"
   gen:
     go:
       package: "main"
       out: "."
       sql_package: "pgx/v5"
+  database:
+    uri: "postgres://postgres:password@localhost:5432/beaker_development?sslmode=disable"

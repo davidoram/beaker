@@ -66,9 +66,9 @@ For out project we will use [pgx](https://github.com/jackc/pgx).
 `sqlc` is configured using the [sqlc.yaml](../sqlc.yaml) file and queries live in the [query.sql](../query.sql) file. Each query is prefixed by a specially formatted comment that tells `sqlc` what to name the function that it will generate from the query, and how many rows it returns (if any). `sqlc` is executed by the [Makefile](../Makefile) target of the same name. 
 
 Note that the following files are **generated** each time we run `sqlc`:
-- [db.go](../db.go)
-- [models.go](../models.go)
-- [query.sql.go](../query.sql.go)
+- [db.go](../db.go) - Contains the database interface definitions and connection handling code
+- [models.go](../models.go) - Contains Go struct definitions that map to database table rows  
+- [query.sql.go](../query.sql.go) - Contains the generated Go functions that execute your SQL queries
 
 We **don't** commit these files to git, because we want to ensure they are re-generated each time we run a build. It only takes a fraction of a second so its pretty fast, but it ensures our database access layer code stays in sync with our `beaker_development` database. If we change the database structure we just run `make build` to bring our code in line.
 
@@ -95,3 +95,5 @@ FROM Metric
 FACET service.name 
 TIMESERIES AUTO
 ```
+
+We will revisit the database access layer when we talk about how the application calls it.

@@ -3,5 +3,9 @@ sql:
 - queries: query.sql
   engine: postgresql
   database:
-    uri: postgresql://postgres:password@localhost:5432/beaker_development?sslmode=disable
-
+    uri: "postgres://postgres:password@localhost:5432/beaker_development?sslmode=disable"
+  gen:
+    go:
+      package: "main"
+      out: "."
+      sql_package: "pgx/v5"

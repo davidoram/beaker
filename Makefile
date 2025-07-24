@@ -36,7 +36,7 @@ initial-tool-install:
 	go get -tool github.com/equinix-labs/otel-cli@v0.4.5
 
 .PHONY: build
-build: 
+build: migrate-db sqlc
 	mkdir -p bin
 	go build -o bin/beaker $(shell ls *.go | grep -v '_test.go')
 
@@ -61,9 +61,12 @@ migrate-db:
 recreate-db: drop-db create-db migrate-db
 	@echo "Database 'beaker_$(DB_ENV)' recreated successfully."
 
+.PHONY: sqlc
+sqlc:
+	sqlc generate 
 
 .PHONY: run
-run: build  migrate-db
+run: build  
 	OTEL_SERVICE_NAME=beaker \
 	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=codespace \
 	OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \

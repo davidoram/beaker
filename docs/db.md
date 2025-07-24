@@ -59,5 +59,8 @@ For out project we will use [pgx](https://github.com/jackc/pgx).
 `pgx` is well supported by the `sqlc` tool that we use to generate our query bolierplate code, and can be integrated with our [Open Telemetry](./otel.md) using the [sqlc-pgx-monitoring](https://github.com/amirsalarsafaei/sqlc-pgx-monitoring). This is important at runtime, because it will allow us to see inside the running application and examine how our queries are performing. 
 
 [`sqlc`](https://sqlc.dev) turns our SQL queries into typesafe `go` code, which our application will in turn use to access the database.  Why do we use `sqlc` instead of writing code by hand?
-- It writes code better than we can?
-- It performs typesafe conversions
+- `sqlc` writes the code better than we can. We get very consistent, well written and tested code.
+- It works with database connections, and database pool connections. 
+- `sqlc` generated code provides a typesafe interface for our application code. A typesafe interface elimininates a whole class of errors, by pushing type casting problems from runtime to compile time.
+
+`sqlc` is configured using the [sqlc.yaml](../sqlc.yaml) file and queries live in the [query.sql](../query.sql) file. Each query is prefixed by a specially formatted comment that tells `sqlc` what to name the function that it will generate from the query, and how many rows it returns (if any). `sqlc` is executed by the [Makefile](../Makefile) target of the same name. 

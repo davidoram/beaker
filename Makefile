@@ -75,7 +75,7 @@ run: build
 	OTEL_EXPORTER_OTLP_COMPRESSION=gzip \
 	OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
 	OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta \
-	bin/beaker --credentials credentials.txt --postgres "postgres://postgres:password@db:5432/beaker_$(DB_ENV)?sslmode=disable"
+	bin/beaker --credentials $(HOME)/credentials.txt --postgres "postgres://postgres:password@localhost:5432/beaker_$(DB_ENV)?sslmode=disable"
 
 .PHONY: test-otel
 test-otel:

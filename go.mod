@@ -57,6 +57,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emicklei/dot v1.8.0 // indirect
 	github.com/equinix-labs/otel-cli v0.4.5 // indirect
+	github.com/exaring/otelpgx v0.9.3 // indirect
 	github.com/expr-lang/expr v1.17.2 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect

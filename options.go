@@ -35,7 +35,7 @@ func ParseOptions(args []string) (Options, error) {
 	}
 	options := Options{
 		CredentialsFile: filepath.Join(homeDir, "credentials.txt"),
-		PostgresURL:     "postgres://postgres:password@localhost:5432/beaker_dev",
+		PostgresURL:     "postgres://postgres:password@localhost:5432/beaker_development?sslmode=disable",
 	}
 
 	// Use flags to parse command line arguments

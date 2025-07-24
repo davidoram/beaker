@@ -64,3 +64,34 @@ For out project we will use [pgx](https://github.com/jackc/pgx).
 - `sqlc` generated code provides a typesafe interface for our application code. A typesafe interface elimininates a whole class of errors, by pushing type casting problems from runtime to compile time.
 
 `sqlc` is configured using the [sqlc.yaml](../sqlc.yaml) file and queries live in the [query.sql](../query.sql) file. Each query is prefixed by a specially formatted comment that tells `sqlc` what to name the function that it will generate from the query, and how many rows it returns (if any). `sqlc` is executed by the [Makefile](../Makefile) target of the same name. 
+
+Note that the following files are **generated** each time we run `sqlc`:
+- [db.go](../db.go)
+- [models.go](../models.go)
+- [query.sql.go](../query.sql.go)
+
+We **don't** commit these files to git, because we want to ensure they are re-generated each time we run a build. It only takes a fraction of a second so its pretty fast, but it ensures our database access layer code stays in sync with our `beaker_development` database. If we change the database structure we just run `make build` to bring our code in line.
+
+
+## Connection setup
+
+Our application will use a 'pool' of database connections. As each API request comes in it:
+
+- Selects an unused database connection from the 'pool'
+- Uses that connection for the duration of the API request.
+- Returns the database connection back to the 'pool'
+
+This pattern means that we minimize the number of times a database connection is established.  Creating a database connection is a relatively costly operation, so it makes sense to create them once then re-use them.
+
+Our `pgx/v5` driver allows us the setup a connection pool, and wrap it with the [`github.com/exaring/otelpgx`](https://github.com/exaring/otelpgx) and now we are automatically collecting:
+- Traces around our SQL statements
+- Metrics for our connection pool
+
+You can create a 'Dashboard' in NewRelic to visualize how many database connections are available. Paste in the following NRQL query to your dashboard:
+
+```nrql
+SELECT average(pgxpool.idle_connections) 
+FROM Metric 
+FACET service.name 
+TIMESERIES AUTO
+```

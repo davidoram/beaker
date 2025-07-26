@@ -6,7 +6,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/exaring/otelpgx"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/exp/slog"
 )
 
@@ -34,7 +37,41 @@ func main() {
 
 	// Log application start
 	slog.InfoContext(ctx, "Telemetry initialized")
-	// telemetry.LogApplicationStart(ctx)
+
+	// Create database connection pool
+
+	// Optional: configure pool settings
+	config, err := pgxpool.ParseConfig(opts.PostgresURL)
+	if err != nil {
+		slog.ErrorContext(ctx, "Unable to parse db config", err)
+		os.Exit(1)
+	}
+	config.MaxConns = 10
+	config.MinConns = 2
+	config.MaxConnLifetime = 30 * time.Minute
+
+	// Set up the tracer for OpenTelemetry
+	config.ConnConfig.Tracer = otelpgx.NewTracer()
+
+	// Connect and create the pool
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		slog.ErrorContext(ctx, "Unable to create pool", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	if err := otelpgx.RecordStats(pool); err != nil {
+		slog.ErrorContext(ctx, "unable to record database stats", err)
+		os.Exit(1)
+	}
+
+	// Ping the database to ensure it's reachable
+	if err := pool.Ping(ctx); err != nil {
+		slog.ErrorContext(ctx, "Unable to ping database", err)
+		os.Exit(1)
+	}
+	slog.InfoContext(ctx, "Database connection pool created successfully")
 
 	// Initialize the application
 	app := NewApp(opts)

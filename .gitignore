@@ -28,3 +28,6 @@ go.work.sum
 .env
 credentials.txt
 main
+db.go
+models.go
+query.sql.go

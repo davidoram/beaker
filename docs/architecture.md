@@ -53,13 +53,15 @@ We are building a basic **Inventory API** that tracks the quantity of products u
 - If the product doesn’t exist, it is created with a starting quantity of 0.
 - The `quantity` is added to the current stock.
 - ❌ Rejects if the quantity is `<= 0`.
+- Returns the new stock level
 
 ### `inventory-drawdown`
 
 - Accepts a `product-sku` and a `quantity`.
-- If the product doesn’t exist, it is created with a starting quantity of 0.
+- ❌ If the product doesn’t exist, return an error and reject the call
 - The `quantity` is subtracted from the current stock.
 - ❌ Rejects if the result would reduce inventory below 0.
+- Returns the new stock level
 
 ### `inventory-show`
 
@@ -77,7 +79,7 @@ We are building a basic **Inventory API** that tracks the quantity of products u
   - Use [JSON Schema](https://json-schema.org/) to validate requests & responses
 - Define our API using the [OpenAPI](https://www.openapis.org/) standard.
 - Implement tests to verify that our code is working correctly.
-- Capture Telemetry using [Open Telemetry](https://github.com/grafana/docker-otel-lgtm/) standards
+- Capture Telemetry using [Open Telemetry](https://opentelemetry.io) standards
 
 
 # Standards and Organisations

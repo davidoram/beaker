@@ -1,0 +1,11 @@
+development:
+  dialect: postgres
+  datasource: dbname=beaker_development sslmode=disable host=localhost user=postgres password=password  
+  dir: db-migrations
+  table: migrations
+
+test:
+  dialect: postgres
+  datasource: dbname=beaker_test sslmode=disable host=localhost user=postgres password=password 
+  dir: db-migrations
+  table: migrations

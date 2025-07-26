@@ -15,3 +15,6 @@ Each episode covers one of the following topics
 
 - [High Level architecture](./docs/architecture.md)
 - [Devlopment environment](./docs/dev-environment.md)
+- [Open Telemetry Setup](./docs/otel.md)
+- [Database Layer](./docs/db.md)
+- [API Layer](./docs/api.md)

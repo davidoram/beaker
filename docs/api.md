@@ -95,4 +95,13 @@ The process is as follows:
 
 1. Create our secret. In our case its a 'credentials' file created via Synadia Cloud.
 2. Encode our secret in [base64](https://en.wikipedia.org/wiki/Base64)
-3. 
+3. Add the base64 encoded secret to [Github codespace user secrets](https://github.com/settings/codespaces)
+4. When our codespace starts up, transform the Github codespace user secrets back into a 'credentials' file.
+
+We will repreat this process three times for each of the following NATS user credentials files:
+
+- `CLI` the user that has full access to everything, useful for troubleshooting. Github codespace user secret name `NATS_CREDS_CLI`
+- `APP` for the application. Github codespace user secret name `NATS_CREDS_APP`
+- `CALLER` for a caller to use. Github codespace user secret name `NATS_CREDS_CALLER`
+
+Use the Synadia website to create a new user. Then click 'Get Connected' and download the credentials file.  Next upload that to your codespace by dragging and dropping the file (or copy and pasing the content). Encode the file using the following command `base64 <path to creds file>` eg: `base64 /workspaces/beaker/NGS-Default-CLI.creds`.  Copy exactly the output, and paste it in as a new [Github codespace user secrets](https://github.com/settings/codespaces) withe the correct name as listed above.

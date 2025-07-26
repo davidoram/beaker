@@ -35,17 +35,34 @@ for var in $(env | grep '^NATS_CREDS_' | cut -d'=' -f1); do
 done
 
 
-# Wait for Docker socket to appear
-while [ ! -S /var/run/docker.sock ]; do
-    echo "Waiting for Docker socket..."
-    sleep 1
+# Try to actually use Docker with a simple operation
+echo "Docker daemon responding, testing full functionality..."
+until docker info >/dev/null 2>&1 && docker ps >/dev/null 2>&1; do
+    echo "Waiting for Docker daemon to be fully ready..."
+    sleep 2
 done
 
-# Check if Docker responds
-until docker version >/dev/null 2>&1; do
-    echo "Waiting for Docker daemon to be ready..."
-    sleep 1
+# Final test - try a simple image operation to ensure daemon can handle image pulls
+echo "Testing Docker image operations..."
+max_retries=30
+retry_count=0
+while [ $retry_count -lt $max_retries ]; do
+    if docker pull hello-world:latest >/dev/null 2>&1; then
+        echo "Docker daemon is fully ready!"
+        docker rmi hello-world:latest >/dev/null 2>&1  # Clean up test image
+        break
+    else
+        echo "Docker daemon not ready for image operations, retrying... ($((retry_count + 1))/$max_retries)"
+        sleep 2
+        retry_count=$((retry_count + 1))
+    fi
 done
+
+if [ $retry_count -eq $max_retries ]; then
+    echo "Error: Docker daemon failed to become ready after $max_retries attempts"
+    exit 1
+fi
+
 echo "Docker daemon is ready!"
 
 make restart-docker-compose

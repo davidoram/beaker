@@ -133,3 +133,5 @@ All our schemas are defined in the [schemas](../schemas/) directory. Our deaign 
     - [product-sku.json](../schemas/product-sku.json) defines the shared data type for a products [stock keeping unit (sku) code](https://en.wikipedia.org/wiki/Stock_keeping_unit)
 
 Eeven though some requests and responses are virtually identical, we model them independently so if they change later we will minimize our impact. When an API changes its a lot of work to make sure no callers are affected. Sometimes you might expose a new version of an API and support calls to both versions simultaneously.
+
+To ensure our JSON Schemas are valid, we run them through the standalone validator provided by the [santhosh-tekuri/jsonschema](https://github.com/santhosh-tekuri/jsonschema) github project.  We will also use this library inside our app to validate requests and responses.

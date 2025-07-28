@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "inventory-drawdown.request.json",
   "title": "inventory-drawdown.request",
   "type": "object",
   "properties": {

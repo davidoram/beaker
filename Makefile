@@ -65,8 +65,17 @@ recreate-db: drop-db create-db migrate-db
 sqlc:
 	sqlc generate 
 
+.PHONY: lint
+lint:
+	@echo "Validating JSON Schema files..."
+	@for schema in schemas/*.json; do \
+		echo "Validating $$schema"; \
+		jv --assert-format --draft 2020 "$$schema" || exit 1; \
+	done
+	@echo "All schemas are valid!"
+
 .PHONY: run
-run: build  
+run: lint build  
 	OTEL_SERVICE_NAME=beaker \
 	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=codespace \
 	OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \

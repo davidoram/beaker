@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "inventory-show.response",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "description": "Error message if the request failed."
+        }
+      },
+      "required": ["error"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "product-sku": {
+          "$ref": "product-sku.json"
+        },
+        "quantity": {
+          "type": "integer"
+        }
+      },
+      "required": ["product-sku", "quantity"],
+      "additionalProperties": false
+    }
+  ]
+}

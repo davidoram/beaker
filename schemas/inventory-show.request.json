@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "inventory-show.request",
+  "type": "object",
+  "properties": {
+    "product-sku": {
+      "$ref": "product-sku.json"
+    }
+  },
+  "required": ["product-sku"],
+  "additionalProperties": false
+}

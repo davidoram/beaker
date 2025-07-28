@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "inventory-receive.request",
+  "type": "object",
+  "properties": {
+    "product-sku": {
+      "$ref": "product-sku.json"
+    },
+    "quantity": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The number of units requested, must be at least 1."
+    }
+  },
+  "required": ["product-sku", "quantity"],
+  "additionalProperties": false
+}

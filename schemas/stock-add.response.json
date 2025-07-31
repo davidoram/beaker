@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "inventory-drawdown.response.json",
-  "title": "inventory-drawdown.response",
+  "$id": "stock-add.response.json",
+  "title": "stock-add.response",
   "oneOf": [
     {
       "type": "object",

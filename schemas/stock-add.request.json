@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "inventory-drawdown.request.json",
-  "title": "inventory-drawdown.request",
+  "$id": "stock-add.request.json",
+  "title": "stock-add.request",
   "type": "object",
   "properties": {
     "product-sku": {
@@ -10,7 +10,7 @@
     "quantity": {
       "type": "integer",
       "minimum": 1,
-      "description": "The number of units requested, must be at least 1."
+      "description": "The number of units to add, must be at least 1."
     }
   },
   "required": ["product-sku", "quantity"],

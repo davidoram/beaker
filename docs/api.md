@@ -120,15 +120,15 @@ What this means for us is that we will need tools to convert to and from JSON fr
 All our schemas are defined in the [schemas](../schemas/) directory. Our deaign has a separate file for API requests and responses.  Where data types are re-used we put them into their own files.
 
 
-- `inventory-receive` API endpoint is used to add stock.
-    - [inventory-receive.request.json](../schemas/inventory-receive.request.json) defines a request
-    - [inventory-receive.response.json](../schemas/inventory-receive.response.json) defines a response
-- `inventory-drawdown` API endpoint is used to deplete stock.
-    - [inventory-drawdown.request.json](../schemas/inventory-drawdown.request.json) defines a request
-    - [inventory-drawdown.response.json](../schemas/inventory-drawdown.response.json) defines a response
-- `inventory-show` API endpoint is display current stock levels.
-    - [inventory-show.request.json](../schemas/inventory-show.request.json) defines a request
-    - [inventory-show.response.json](../schemas/inventory-show.response.json) defines a response
+- `stock-add` API endpoint is used to add stock.
+    - [stock-add.request.json](../schemas/stock-add.request.json) defines a request
+    - [stock-add.response.json](../schemas/stock-add.response.json) defines a response
+- `stock-remove` API endpoint is used to deplete stock.
+    - [stock-remove.request.json](../schemas/stock-remove.request.json) defines a request
+    - [stock-remove.response.json](../schemas/stock-remove.response.json) defines a response
+- `stock-get` API endpoint is used to display current stock levels.
+    - [stock-get.request.json](../schemas/stock-get.request.json) defines a request
+    - [stock-get.response.json](../schemas/stock-get.response.json) defines a response
 - The following shared data types are defined:
     - [product-sku.json](../schemas/product-sku.json) defines the shared data type for a products [stock keeping unit (sku) code](https://en.wikipedia.org/wiki/Stock_keeping_unit)
 

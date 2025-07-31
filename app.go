@@ -32,25 +32,25 @@ func (app *App) Stop() error {
 
 func (app *App) makeService() error {
 	config := micro.Config{
-		Name:        "InventoryService",
+		Name:        "StockService",
 		Version:     "0.1.0",
-		Description: "Manage product inventory",
+		Description: "Manage product stock",
 	}
 	svc, err := micro.AddService(app.nc, config)
 	if err != nil {
 		return err
 	}
 	// add a group to aggregate endpoints under common prefix
-	inventory := svc.AddGroup("inventory")
-	err = inventory.AddEndpoint("receive", micro.HandlerFunc(app.inventoryReceiveHandler))
+	stock := svc.AddGroup("stock")
+	err = stock.AddEndpoint("add", micro.HandlerFunc(app.stockAddHandler))
 	if err != nil {
 		return err
 	}
-	err = inventory.AddEndpoint("drawdown", micro.HandlerFunc(app.inventoryDrawdownHandler))
+	err = stock.AddEndpoint("remove", micro.HandlerFunc(app.stockRemoveHandler))
 	if err != nil {
 		return err
 	}
-	err = inventory.AddEndpoint("show", micro.HandlerFunc(app.inventoryShowHandler))
+	err = stock.AddEndpoint("get", micro.HandlerFunc(app.stockGetHandler))
 	if err != nil {
 		return err
 	}
@@ -58,14 +58,14 @@ func (app *App) makeService() error {
 	return nil
 }
 
-func (app *App) inventoryReceiveHandler(req micro.Request) {
+func (app *App) stockAddHandler(req micro.Request) {
 	req.Respond([]byte("TODO"))
 }
 
-func (app *App) inventoryDrawdownHandler(req micro.Request) {
+func (app *App) stockRemoveHandler(req micro.Request) {
 	req.Respond([]byte("TODO"))
 }
 
-func (app *App) inventoryShowHandler(req micro.Request) {
+func (app *App) stockGetHandler(req micro.Request) {
 	req.Respond([]byte("TODO"))
 }

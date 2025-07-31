@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "inventory-show.request.json",
-  "title": "inventory-show.request",
+  "$id": "stock-get.request.json",
+  "title": "stock-get.request",
   "type": "object",
   "properties": {
     "product-sku": {

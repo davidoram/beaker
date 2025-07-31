@@ -1,47 +1,71 @@
 package main
 
 import (
-	"context"
-
-	"go.opentelemetry.io/contrib/bridges/otelslog"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/trace"
-)
-
-const (
-	name = "beaker"
-)
-
-var (
-	tracer    = otel.Tracer(name)
-	meter     = otel.Meter(name)
-	logger    = otelslog.NewLogger(name)
-	callCount metric.Int64Counter
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/micro"
 )
 
 type App struct {
-	Options Options
+	nc  *nats.Conn
+	db  *pgxpool.Pool
+	svc micro.Service
 }
 
-func NewApp(opts Options) *App {
-
-	return &App{
-		Options: opts,
+func StartNewApp(nc *nats.Conn, db *pgxpool.Pool) (*App, error) {
+	app := &App{
+		nc: nc,
+		db: db,
 	}
+	if err := app.makeService(); err != nil {
+		return nil, err
+	}
+	return app, nil
 }
 
-func (a *App) Start(ctx context.Context) bool {
-
-	// Test span to check if telemetry is working
-	ctx, span := tracer.Start(ctx, "application startup", trace.WithSpanKind(trace.SpanKindServer))
-	logger.InfoContext(ctx, "Application started")
-	span.End()
-
-	// Wait for the context to be cancelled
-	select {
-	case <-ctx.Done():
-		logger.InfoContext(ctx, "Shutting down application...")
-		return true
+func (app *App) Stop() error {
+	if err := app.svc.Stop(); err != nil {
+		return err
 	}
+	return nil
+}
+
+func (app *App) makeService() error {
+	config := micro.Config{
+		Name:        "InventoryService",
+		Version:     "0.1.0",
+		Description: "Manage product inventory",
+	}
+	svc, err := micro.AddService(app.nc, config)
+	if err != nil {
+		return err
+	}
+	// add a group to aggregate endpoints under common prefix
+	inventory := svc.AddGroup("inventory")
+	err = inventory.AddEndpoint("receive", micro.HandlerFunc(app.inventoryReceiveHandler))
+	if err != nil {
+		return err
+	}
+	err = inventory.AddEndpoint("drawdown", micro.HandlerFunc(app.inventoryDrawdownHandler))
+	if err != nil {
+		return err
+	}
+	err = inventory.AddEndpoint("show", micro.HandlerFunc(app.inventoryShowHandler))
+	if err != nil {
+		return err
+	}
+	app.svc = svc
+	return nil
+}
+
+func (app *App) inventoryReceiveHandler(req micro.Request) {
+	req.Respond([]byte("TODO"))
+}
+
+func (app *App) inventoryDrawdownHandler(req micro.Request) {
+	req.Respond([]byte("TODO"))
+}
+
+func (app *App) inventoryShowHandler(req micro.Request) {
+	req.Respond([]byte("TODO"))
 }

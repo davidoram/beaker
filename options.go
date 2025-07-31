@@ -9,11 +9,13 @@ import (
 )
 
 type Options struct {
+	NatsURL         string
 	CredentialsFile string
 	PostgresURL     string
 }
 
 var (
+	ErrBadNatsURL         = errors.New("Invalid NATS URL")
 	ErrBadCredentialsFile = errors.New("Invalid credentials file path")
 	ErrBadPostgresURL     = errors.New("Invalid Postgres URL")
 )
@@ -34,13 +36,15 @@ func ParseOptions(args []string) (Options, error) {
 		return Options{}, err
 	}
 	options := Options{
-		CredentialsFile: filepath.Join(homeDir, "credentials.txt"),
+		CredentialsFile: filepath.Join(homeDir, "NATS_CREDS_APP.creds"),
 		PostgresURL:     "postgres://postgres:password@localhost:5432/beaker_development?sslmode=disable",
+		NatsURL:         "tls://connect.ngs.global",
 	}
 
 	// Use flags to parse command line arguments
 	flagset.StringVar(&options.CredentialsFile, "credentials", options.CredentialsFile, "Path to the NATS credentials file. See https://docs.nats.io/nats-concepts/security/ for details")
 	flagset.StringVar(&options.PostgresURL, "postgres", options.PostgresURL, "Postgres connection URL. See https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING for details")
+	flagset.StringVar(&options.NatsURL, "nats", options.NatsURL, "NATS server URL. See https://docs.nats.io/nats-concepts/nats-server/ for details")
 
 	// Parse the provided arguments
 	if err := flagset.Parse(args); err != nil {

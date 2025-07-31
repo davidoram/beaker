@@ -10,10 +10,33 @@ import (
 
 	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go"
 	"golang.org/x/exp/slog"
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	setTimeZoneToUTCOrExit()
+	opts := getOptionsOrExit()
+	closeOtel := setupTelemetryOrExit(ctx, opts)
+	defer closeOtel()
+	pool := setupPostgresPoolOrExit(ctx, opts.PostgresURL)
+	defer pool.Close()
+	nc := connectToNATSOrExit(ctx, opts.NatsURL, opts.CredentialsFile)
+	defer nc.Close()
+	setupSignalHandler(ctx, cancel)
+	app := startAppOrExit(nc, pool)
+	defer app.Stop()
+	slog.InfoContext(ctx, "beaker is running")
+
+	// Wait for the context to be cancelled
+	<-ctx.Done()
+	slog.InfoContext(ctx, "shutting down application")
+}
+
+func getOptionsOrExit() Options {
 	// Parse command line arguments to get options
 	opts, err := GetOptions()
 	if err != nil {
@@ -21,27 +44,30 @@ func main() {
 		os.Stderr.WriteString("Error parsing options: " + err.Error() + "\n")
 		os.Exit(1)
 	}
+	return opts
+}
 
-	// Create a context for the application and
-	// make it cancelled if a termination signal is received
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // Ensure context is cancelled when main exits
+func setTimeZoneToUTCOrExit() {
+	// Set the timezone to UTC
+	if err := os.Setenv("TZ", "UTC"); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to set timezone to UTC: %v\n", err)
+		os.Exit(1)
+	}
+}
 
+func setupTelemetryOrExit(ctx context.Context, opts Options) func() {
 	// Initialize telemetry
 	shutdown, err := NewTelemetryProvider(ctx, "beaker")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize telemetry: %v\n", err)
 		os.Exit(1)
 	}
-	defer shutdown(ctx) // Ensure telemetry is shut down when main exits
+	return func() { shutdown(ctx) }
+}
 
-	// Log application start
-	slog.InfoContext(ctx, "Telemetry initialized")
-
-	// Create database connection pool
-
+func setupPostgresPoolOrExit(ctx context.Context, postgresUrl string) *pgxpool.Pool {
 	// Optional: configure pool settings
-	config, err := pgxpool.ParseConfig(opts.PostgresURL)
+	config, err := pgxpool.ParseConfig(postgresUrl)
 	if err != nil {
 		slog.ErrorContext(ctx, "Unable to parse db config", err)
 		os.Exit(1)
@@ -59,7 +85,6 @@ func main() {
 		slog.ErrorContext(ctx, "Unable to create pool", err)
 		os.Exit(1)
 	}
-	defer pool.Close()
 
 	if err := otelpgx.RecordStats(pool); err != nil {
 		slog.ErrorContext(ctx, "unable to record database stats", err)
@@ -71,12 +96,27 @@ func main() {
 		slog.ErrorContext(ctx, "Unable to ping database", err)
 		os.Exit(1)
 	}
-	slog.InfoContext(ctx, "Database connection pool created successfully")
+	slog.InfoContext(ctx, "postgres connection pool created successfully")
+	return pool
+}
 
-	// Initialize the application
-	app := NewApp(opts)
+func connectToNATSOrExit(ctx context.Context, natsURL, credentialsFile string) *nats.Conn {
+	// Connect to NATS server
+	nc, err := nats.Connect(
+		natsURL,
+		nats.Name("beaker"),
+		nats.UserCredentials(credentialsFile),
+		nats.MaxReconnects(-1),            // Infinite reconnect attempts
+		nats.ReconnectWait(2*time.Second), // Wait 2 seconds between reconnect attempts
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, "Unable to connect to NATS server", err)
+		os.Exit(1)
+	}
+	return nc
+}
 
-	// Add a signal handler to gracefully handle termination signals
+func setupSignalHandler(ctx context.Context, cancel context.CancelFunc) {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -84,10 +124,14 @@ func main() {
 		slog.InfoContext(ctx, "Received termination signal, shutting down...")
 		cancel() // Cancel the context to signal graceful shutdown
 	}()
+}
 
-	// Start the application
-	if app.Start(ctx) {
-		os.Exit(0)
+func startAppOrExit(nc *nats.Conn, pool *pgxpool.Pool) *App {
+	// Create a new application instance
+	app, err := StartNewApp(nc, pool)
+	if err != nil {
+		slog.Error("Failed to create application instance", err)
+		os.Exit(1)
 	}
-	os.Exit(1)
+	return app
 }

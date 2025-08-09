@@ -87,7 +87,7 @@ func (app *App) stockAddHandler(ctx context.Context, req micro.Request) {
 
 	rs.ValidateJSON(ctx, app.compiler, req.Data(), schemas.StockAddRequestSchema)
 	stockReq := DecodeRequest[schemas.StockAddRequest](ctx, rs)
-	resp := rs.BuildStockAddResponse(rs.AddStock(ctx, stockReq))
+	resp := rs.BuildStockAddResponse(ctx, rs.AddStock(ctx, stockReq))
 	req.RespondJSON(resp)
 }
 

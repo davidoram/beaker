@@ -66,9 +66,7 @@ func (rs *requestScope) setupDbConn(ctx context.Context, pool *pgxpool.Pool) err
 }
 
 func (rs *requestScope) Close(ctx context.Context) {
-	if rs.tx != nil {
-		rs.tx.Rollback(ctx)
-	}
+	rs.CommitOrRollback(ctx)
 	if rs.conn != nil {
 		rs.conn.Release()
 	}
@@ -210,7 +208,10 @@ func (rs *requestScope) AddStock(ctx context.Context, stock schemas.StockAddRequ
 	return &inventory
 }
 
-func (rs *requestScope) BuildStockAddResponse(inventory *Inventory) schemas.StockAddResponse {
+func (rs *requestScope) BuildStockAddResponse(ctx context.Context, inventory *Inventory) schemas.StockAddResponse {
+	_, span := otel.Tracer("").Start(ctx, "build stock-add response")
+	defer span.End()
+
 	resp := schemas.StockAddResponse{}
 	if rs.HasError() {
 		resp.OK = false

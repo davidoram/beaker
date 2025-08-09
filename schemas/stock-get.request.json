@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "stock-get.request.json",
+  "$id": "http://github.com/davidoram/beaker/schemas/stock-get.request.json",
   "title": "stock-get.request",
   "type": "object",
   "properties": {
     "product-sku": {
-      "$ref": "product-sku.json"
+      "$ref": "http://github.com/davidoram/beaker/schemas/product-sku.json"
     }
   },
   "required": ["product-sku"],

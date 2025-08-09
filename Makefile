@@ -70,7 +70,7 @@ lint:
 	@echo "Validating JSON Schema files..."
 	@for schema in schemas/*.json; do \
 		echo "Validating $$schema"; \
-		jv --assert-format --draft 2020 "$$schema" || exit 1; \
+		jv --assert-format --draft 2020 "$$schema"  --map http://github.com/davidoram/beaker/schemas=schemas || exit 1; \
 	done
 	@echo "All schemas are valid!"
 
@@ -105,3 +105,7 @@ test-otel-error:
 	OTEL_EXPORTER_OTLP_COMPRESSION=gzip \
 	OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
 	otel-cli exec --name "test error" --attrs "beaker.foo=bar,beaker.baz=qux" false
+
+.PHONY: test-add
+test-add:
+	nats req stock.add '{"product-sku": "coffee-cup", "quantity": 10}'

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "product-sku.json",
+  "$id": "http://github.com/davidoram/beaker/schemas/product-sku.json",
   "title": "Product SKU",
   "type": "string",
   "pattern": "^[A-Za-z0-9_-]+$",

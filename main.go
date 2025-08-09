@@ -11,6 +11,7 @@ import (
 	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 	"golang.org/x/exp/slog"
 )
 
@@ -26,8 +27,9 @@ func main() {
 	defer pool.Close()
 	nc := connectToNATSOrExit(ctx, opts.NatsURL, opts.CredentialsFile)
 	defer nc.Close()
+	compiler := makeJSONSchemaCompilerOrExit(ctx, opts.SchemaDir)
 	setupSignalHandler(ctx, cancel)
-	app := startAppOrExit(nc, pool)
+	app := startAppOrExit(nc, pool, compiler)
 	defer app.Stop()
 	slog.InfoContext(ctx, "beaker is running")
 
@@ -116,6 +118,22 @@ func connectToNATSOrExit(ctx context.Context, natsURL, credentialsFile string) *
 	return nc
 }
 
+func makeJSONSchemaCompilerOrExit(ctx context.Context, schemaDir string) *jsonschema.Compiler {
+	loader, err := NewLoader(map[string]string{
+		"http://github.com/davidoram/beaker/schemas/": schemaDir,
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "Unable to create JSON schema loader", err)
+		os.Exit(1)
+	}
+	compiler := jsonschema.NewCompiler()
+	compiler.UseLoader(loader)
+	compiler.AssertContent()
+	compiler.AssertFormat()
+	compiler.DefaultDraft(jsonschema.Draft2020)
+	return compiler
+}
+
 func setupSignalHandler(ctx context.Context, cancel context.CancelFunc) {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
@@ -126,9 +144,9 @@ func setupSignalHandler(ctx context.Context, cancel context.CancelFunc) {
 	}()
 }
 
-func startAppOrExit(nc *nats.Conn, pool *pgxpool.Pool) *App {
+func startAppOrExit(nc *nats.Conn, pool *pgxpool.Pool, compiler *jsonschema.Compiler) *App {
 	// Create a new application instance
-	app, err := StartNewApp(nc, pool)
+	app, err := StartNewApp(nc, pool, compiler)
 	if err != nil {
 		slog.Error("Failed to create application instance", err)
 		os.Exit(1)

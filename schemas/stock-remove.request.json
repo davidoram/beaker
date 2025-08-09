@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "stock-remove.request.json",
+  "$id": "http://github.com/davidoram/beaker/schemas/stock-remove.request.json",
   "title": "stock-remove.request",
   "type": "object",
   "properties": {
     "product-sku": {
-      "$ref": "product-sku.json"
+      "$ref": "http://github.com/davidoram/beaker/schemas/product-sku.json"
     },
     "quantity": {
       "type": "integer",

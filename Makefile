@@ -109,3 +109,12 @@ test-otel-error:
 .PHONY: test-add
 test-add:
 	nats req stock.add '{"product-sku": "coffee-cup", "quantity": 10}'
+
+.PHONY: test-get
+test-get:
+	nats req stock.get '{"product-sku": "coffee-cup"}'
+	nats req stock.get '{"product-sku": "coaster"}'
+
+.PHONY: test-remove
+test-remove:
+	nats req stock.remove '{"product-sku": "coffee-cup", "quantity": 7}'

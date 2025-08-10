@@ -10,3 +10,8 @@ UPDATE inventory
 SET stock_level = stock_level - $2
 WHERE product_sku = $1
 RETURNING product_sku, stock_level;
+
+-- name: GetInventory :one
+SELECT product_sku, stock_level
+FROM inventory
+WHERE product_sku = $1;

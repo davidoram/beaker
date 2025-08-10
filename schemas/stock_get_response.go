@@ -19,4 +19,7 @@ func (r *StockGetResponse) SetError(err error) {
 	errStr := err.Error()
 	r.Error = &errStr
 	r.OK = false
+
+	r.ProductSKU = nil
+	r.Quantity = nil
 }

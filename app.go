@@ -8,7 +8,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
 	"github.com/santhosh-tekuri/jsonschema/v6"
-	"go.opentelemetry.io/otel"
 )
 
 type App struct {
@@ -51,15 +50,15 @@ func (app *App) makeService() error {
 	}
 	// add a group to aggregate endpoints under common prefix
 	stock := svc.AddGroup("stock")
-	err = stock.AddEndpoint("add", micro.HandlerFunc(tracer(app.stockAddHandler)))
+	err = stock.AddEndpoint("add", micro.HandlerFunc(traceHandler(app.stockAddHandler)))
 	if err != nil {
 		return err
 	}
-	err = stock.AddEndpoint("remove", micro.HandlerFunc(tracer(app.stockRemoveHandler)))
+	err = stock.AddEndpoint("remove", micro.HandlerFunc(traceHandler(app.stockRemoveHandler)))
 	if err != nil {
 		return err
 	}
-	err = stock.AddEndpoint("get", micro.HandlerFunc(tracer(app.stockGetHandler)))
+	err = stock.AddEndpoint("get", micro.HandlerFunc(traceHandler(app.stockGetHandler)))
 	if err != nil {
 		return err
 	}
@@ -67,38 +66,42 @@ func (app *App) makeService() error {
 	return nil
 }
 
-func tracer(handler func(ctx context.Context, req micro.Request)) micro.HandlerFunc {
+func traceHandler(handler func(ctx context.Context, req micro.Request)) micro.HandlerFunc {
 	return func(req micro.Request) {
 		ctx := context.Background()
 		// Start a new otel trace span
-		ctx, span := otel.Tracer("").Start(ctx, req.Subject())
+		ctx, span := tracer.Start(ctx, req.Subject())
 		defer span.End()
 		handler(ctx, req)
 	}
 }
 
 func (app *App) stockAddHandler(ctx context.Context, req micro.Request) {
-	rs, err := NewRequestScope(ctx, req, app.db)
-	if err != nil {
-		req.RespondJSON(schemas.BuildErrorResponse(&schemas.StockAddResponse{}, err))
-		return
-	}
+	rs := NewRequestScope(ctx, req, app.db)
 	defer rs.Close(ctx)
-
 	rs.ValidateJSON(ctx, app.compiler, req.Data(), schemas.StockAddRequestSchema)
 	stockReq := DecodeRequest[schemas.StockAddRequest](ctx, rs)
-	resp := rs.BuildStockAddResponse(ctx, rs.AddStock(ctx, stockReq))
-	req.RespondJSON(resp)
+	resp := rs.MakeStockAddResponse(ctx, rs.AddStock(ctx, stockReq))
+	rs.CommitOrRollback(ctx)
+	rs.RespondJSON(ctx, req, resp)
 }
 
 func (app *App) stockRemoveHandler(ctx context.Context, req micro.Request) {
-	req.Respond([]byte("TODO"))
+	rs := NewRequestScope(ctx, req, app.db)
+	defer rs.Close(ctx)
+	rs.ValidateJSON(ctx, app.compiler, req.Data(), schemas.StockRemoveRequestSchema)
+	stockReq := DecodeRequest[schemas.StockRemoveRequest](ctx, rs)
+	resp := rs.MakeStockRemoveResponse(ctx, rs.RemoveStock(ctx, stockReq))
+	rs.CommitOrRollback(ctx)
+	rs.RespondJSON(ctx, req, resp)
 }
 
 func (app *App) stockGetHandler(ctx context.Context, req micro.Request) {
-	req.Respond([]byte("TODO"))
-}
-
-func validateAgainstSchema(ctx context.Context, rs *requestScope, schema string) {
-	// TODO: Implement schema validation logic
+	rs := NewRequestScope(ctx, req, app.db)
+	defer rs.Close(ctx)
+	rs.ValidateJSON(ctx, app.compiler, req.Data(), schemas.StockGetRequestSchema)
+	stockReq := DecodeRequest[schemas.StockGetRequest](ctx, rs)
+	resp := rs.MakeStockGetResponse(ctx, rs.GetStock(ctx, stockReq))
+	rs.CommitOrRollback(ctx)
+	rs.RespondJSON(ctx, req, resp)
 }

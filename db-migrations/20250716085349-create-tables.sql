@@ -6,10 +6,12 @@ create table inventory (
     stock_level int not null,
 
     -- Ensure stock_level is never negative
-    check (stock_level >= 0),
+    constraint inventory_stock_level_nonnegative
+        check (stock_level >= 0),
 
     -- Ensure product_sku only contains lowercase alphanumeric characters, hyphens and underscores
-    check (product_sku ~ '^[a-z0-9_-]+$')
+    constraint inventory_product_sku_format
+        check (product_sku ~ '^[a-z0-9_-]+$')
 );
 
 

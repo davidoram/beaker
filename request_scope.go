@@ -48,7 +48,7 @@ func NewRequestScope(ctx context.Context, req micro.Request, pool *pgxpool.Pool)
 // setupDbConn establishes a connection through the pgxpool.Pool, and wraps it into a Queries instance
 // which is then able to be used to access the database
 func (rs *requestScope) setupDbConn(ctx context.Context, pool *pgxpool.Pool) error {
-	_, span := tracer.Start(ctx, "setup db conn")
+	ctx, span := tracer.Start(ctx, "setup db conn")
 	defer span.End()
 
 	conn, err := pool.Acquire(ctx)
@@ -67,7 +67,11 @@ func (rs *requestScope) setupDbConn(ctx context.Context, pool *pgxpool.Pool) err
 }
 
 func (rs *requestScope) Close(ctx context.Context) {
+	if rs.conn == nil {
+		return
+	}
 	defer func() { rs.conn = nil }()
+	rs.CommitOrRollback(ctx)
 	if rs.conn != nil {
 		rs.conn.Release()
 	}
@@ -174,16 +178,21 @@ func DecodeRequest[T any](ctx context.Context, rs *requestScope) T {
 // If there are errors, it rolls back the transaction.
 // It should be called just before a response is sent back to the caller, so we have a chance to notify them if an error occured
 func (rs *requestScope) CommitOrRollback(ctx context.Context) {
-	ctx, span := tracer.Start(ctx, "commit or rollback")
-	defer span.End()
-
-	// Ensure the transaction is cleaned up after use
-	defer func() { rs.tx = nil }()
 
 	// No transaction -> nothing to commit or rollback
 	if rs.tx == nil {
 		return
 	}
+
+	msg := "commit"
+	if rs.HasError() {
+		msg = "rollback"
+	}
+	ctx, span := tracer.Start(ctx, msg)
+	defer span.End()
+
+	// The transaction is unavailable after calling this function
+	defer func() { rs.tx = nil }()
 
 	// If we encountered an error during the request we need to roll back the transaction
 	if rs.HasError() {
@@ -205,7 +214,7 @@ func (rs *requestScope) RespondJSON(ctx context.Context, req micro.Request, resp
 	_, span := tracer.Start(ctx, "respond JSON")
 	defer span.End()
 	if rs.HasError() {
-		response.SetError(rs.GetError())
+		response.SetErrorAttributes(rs.GetError())
 	}
 	return req.RespondJSON(response)
 }

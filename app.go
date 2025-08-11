@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/davidoram/beaker/schemas"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -72,6 +73,7 @@ func traceHandler(handler func(ctx context.Context, req micro.Request)) micro.Ha
 		// Start a new otel trace span
 		ctx, span := tracer.Start(ctx, req.Subject())
 		defer span.End()
+		slog.InfoContext(ctx, "API Request "+req.Subject())
 		handler(ctx, req)
 	}
 }

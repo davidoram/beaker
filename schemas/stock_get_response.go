@@ -15,7 +15,7 @@ type StockGetResponse struct {
 	Error *string `json:"error,omitempty"`
 }
 
-func (r *StockGetResponse) SetError(err error) {
+func (r *StockGetResponse) SetErrorAttributes(err error) {
 	errStr := err.Error()
 	r.Error = &errStr
 	r.OK = false

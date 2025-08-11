@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -84,6 +86,10 @@ func NewTelemetryProvider(ctx context.Context, serviceName string) (shutdown fun
 	}
 	shutdownFuncs = append(shutdownFuncs, loggerProvider.Shutdown)
 	global.SetLoggerProvider(loggerProvider)
+
+	// Set up slog to use OpenTelemetry logger provider
+	logger := otelslog.NewLogger("beaker")
+	slog.SetDefault(logger)
 
 	return
 }

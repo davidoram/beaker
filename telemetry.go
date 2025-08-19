@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	slogmulti "github.com/samber/slog-multi"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
@@ -87,8 +88,20 @@ func NewTelemetryProvider(ctx context.Context, serviceName string) (shutdown fun
 	shutdownFuncs = append(shutdownFuncs, loggerProvider.Shutdown)
 	global.SetLoggerProvider(loggerProvider)
 
-	// Set up slog to use OpenTelemetry logger provider
-	logger := otelslog.NewLogger("beaker")
+	// Set up slog to use both OpenTelemetry and stdout using slog-multi
+	otelLogger := otelslog.NewLogger("beaker")
+	stdoutHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level:     slog.LevelInfo,
+		AddSource: true,
+	})
+
+	// Create a fanout logger that sends logs to both destinations
+	logger := slog.New(
+		slogmulti.Fanout(
+			otelLogger.Handler(), // Send to OpenTelemetry
+			stdoutHandler,        // Send to stdout
+		),
+	)
 	slog.SetDefault(logger)
 
 	return

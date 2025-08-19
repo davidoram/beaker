@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/davidoram/beaker/internal/db"
 	"github.com/davidoram/beaker/internal/telemetry"
+	"github.com/davidoram/beaker/internal/utility"
 	"github.com/davidoram/beaker/schemas"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
@@ -93,6 +94,7 @@ func (rs *requestScope) AddSystemError(ctx context.Context, err error) {
 }
 
 func (rs *requestScope) addError(ctx context.Context, err error, isSystemError bool) {
+	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "add error")
 	defer span.End()
 
@@ -116,6 +118,7 @@ func (rs *requestScope) GetError() error { return rs.err }
 // It checks if the request is nil and if the request method is valid.
 // If the request is invalid, it adds an error to the request scope.
 func (rs *requestScope) ValidateJSON(ctx context.Context, compiler *jsonschema.Compiler, jsonData []byte, schemaName string) {
+	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "validate JSON")
 	defer span.End()
 
@@ -160,6 +163,7 @@ func (rs *requestScope) ValidateJSON(ctx context.Context, compiler *jsonschema.C
 // DecodeRequest decodes the request data into the provided generic type T.
 // It returns the decoded value of type T. If an error occurs, it adds the error to the requestScope and returns the zero value of T.
 func DecodeRequest[T any](ctx context.Context, rs *requestScope) T {
+	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "decode request")
 	defer span.End()
 
@@ -191,6 +195,7 @@ func (rs *requestScope) CommitOrRollback(ctx context.Context) {
 	if rs.HasError() {
 		msg = "rollback"
 	}
+	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, msg)
 	defer span.End()
 
@@ -214,6 +219,7 @@ func (rs *requestScope) CommitOrRollback(ctx context.Context) {
 }
 
 func (rs *requestScope) RespondJSON(ctx context.Context, req micro.Request, response schemas.APIResponse) error {
+	tracer := telemetry.GetTracer()
 	_, span := tracer.Start(ctx, "respond JSON")
 	defer span.End()
 	if rs.HasError() {
@@ -224,6 +230,7 @@ func (rs *requestScope) RespondJSON(ctx context.Context, req micro.Request, resp
 
 // AddStock adds stock to the inventory.
 func (rs *requestScope) AddStock(ctx context.Context, req schemas.StockAddRequest) *db.Inventory {
+	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "add stock")
 	defer span.End()
 
@@ -244,23 +251,25 @@ func (rs *requestScope) AddStock(ctx context.Context, req schemas.StockAddReques
 }
 
 func (rs *requestScope) MakeStockAddResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockAddResponse {
+	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "build stock-add response")
 	defer span.End()
 
 	resp := schemas.StockAddResponse{}
 	if rs.HasError() {
 		resp.OK = false
-		resp.Error = Ptr(rs.GetError().Error())
+		resp.Error = utility.Ptr(rs.GetError().Error())
 	} else {
 		resp.OK = true
-		resp.ProductSKU = Ptr(schemas.ProductSKU(inventory.ProductSku))
-		resp.Quantity = Ptr(int(inventory.StockLevel))
+		resp.ProductSKU = utility.Ptr(schemas.ProductSKU(inventory.ProductSku))
+		resp.Quantity = utility.Ptr(int(inventory.StockLevel))
 	}
 	return &resp
 }
 
 // GetStock retrieves the stock information for a product.
 func (rs *requestScope) GetStock(ctx context.Context, req schemas.StockGetRequest) *db.Inventory {
+	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "get stock")
 	defer span.End()
 
@@ -281,23 +290,25 @@ func (rs *requestScope) GetStock(ctx context.Context, req schemas.StockGetReques
 }
 
 func (rs *requestScope) MakeStockGetResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockGetResponse {
+	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "build stock-get response")
 	defer span.End()
 
 	resp := schemas.StockGetResponse{}
 	if rs.HasError() {
 		resp.OK = false
-		resp.Error = Ptr(rs.GetError().Error())
+		resp.Error = utility.Ptr(rs.GetError().Error())
 	} else {
 		resp.OK = true
-		resp.ProductSKU = Ptr(schemas.ProductSKU(inventory.ProductSku))
-		resp.Quantity = Ptr(int(inventory.StockLevel))
+		resp.ProductSKU = utility.Ptr(schemas.ProductSKU(inventory.ProductSku))
+		resp.Quantity = utility.Ptr(int(inventory.StockLevel))
 	}
 	return &resp
 }
 
 // RemoveStock adds stock to the inventory.
 func (rs *requestScope) RemoveStock(ctx context.Context, req schemas.StockRemoveRequest) *db.Inventory {
+	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "remove stock")
 	defer span.End()
 
@@ -335,17 +346,18 @@ func (rs *requestScope) RemoveStock(ctx context.Context, req schemas.StockRemove
 }
 
 func (rs *requestScope) MakeStockRemoveResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockRemoveResponse {
+	tracer := telemetry.GetTracer()
 	_, span := tracer.Start(ctx, "build stock-remove response")
 	defer span.End()
 
 	resp := schemas.StockRemoveResponse{}
 	if rs.HasError() {
 		resp.OK = false
-		resp.Error = Ptr(rs.GetError().Error())
+		resp.Error = utility.Ptr(rs.GetError().Error())
 	} else {
 		resp.OK = true
-		resp.ProductSKU = Ptr(schemas.ProductSKU(inventory.ProductSku))
-		resp.Quantity = Ptr(int(inventory.StockLevel))
+		resp.ProductSKU = utility.Ptr(schemas.ProductSKU(inventory.ProductSku))
+		resp.Quantity = utility.Ptr(int(inventory.StockLevel))
 	}
 	return &resp
 }

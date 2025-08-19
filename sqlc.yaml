@@ -5,8 +5,8 @@ sql:
   engine: postgresql
   gen:
     go:
-      package: "main"
-      out: "."
+      package: "db"
+      out: "internal/db"
       sql_package: "pgx/v5"
   database:
     uri: "postgres://postgres:password@localhost:5432/beaker_development?sslmode=disable"

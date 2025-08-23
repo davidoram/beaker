@@ -35,11 +35,15 @@ initial-tool-install:
 	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
 	go get -tool github.com/equinix-labs/otel-cli@v0.4.5
 
+
+.PHONY: clean
+clean:
+	rm -rf ./bin/*
+
 .PHONY: build
 build: migrate-db sqlc
 	mkdir -p bin
-	go build -o bin/beaker $(shell ls *.go | grep -v '_test.go')
-
+	go build -o bin/beaker cmd/*.go
 
 .PHONY: terminate-conns
 terminate-conns:

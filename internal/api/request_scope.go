@@ -21,11 +21,13 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
-// requestScope represents a single request.
+// requestScope holds the context for a single request.
 // It holds the request and any errors that occur during processing.
-// Each function that processes a request should create a new requestScope instance
-// When a function is called, it should check if rs.err is nil before proceeding
-// If rs.err is not nil, it means an error has occurred and the function should return immediately
+// When the API receives a call it should create a NewRequestScope instance
+// Functions that work through the various phases of the request, check if any preceding
+// phases encountered an error by checking if rs.err is nil before proceeding.
+// If rs.err is not nil, it means an error has occurred and the function should 
+// act appropriately.
 // This allows for early exit from the function without further processing
 type requestScope struct {
 	req micro.Request
@@ -46,6 +48,17 @@ func NewRequestScope(ctx context.Context, req micro.Request, pool *pgxpool.Pool)
 		rs.AddSystemError(ctx, err)
 	}
 	return rs
+}
+
+func (rs *requestScope) Close(ctx context.Context) {
+	if rs.conn == nil {
+		return
+	}
+	defer func() { rs.conn = nil }()
+	rs.CommitOrRollback(ctx)
+	if rs.conn != nil {
+		rs.conn.Release()
+	}
 }
 
 // setupDbConn establishes a connection through the pgxpool.Pool, and wraps it into a Queries instance
@@ -70,16 +83,6 @@ func (rs *requestScope) setupDbConn(ctx context.Context, pool *pgxpool.Pool) err
 	return nil
 }
 
-func (rs *requestScope) Close(ctx context.Context) {
-	if rs.conn == nil {
-		return
-	}
-	defer func() { rs.conn = nil }()
-	rs.CommitOrRollback(ctx)
-	if rs.conn != nil {
-		rs.conn.Release()
-	}
-}
 
 // AddCallerError adds a 'caller' error to the request scope. Caller errors represent problems made by
 // the API caller. It only stores the first error encountered, but it logs all errors
@@ -98,6 +101,7 @@ func (rs *requestScope) addError(ctx context.Context, err error, isSystemError b
 	ctx, span := tracer.Start(ctx, "add error")
 	defer span.End()
 
+	// Mark system errors so that they will can be filtered easily inside OpenTelemetry 
 	if isSystemError {
 		span.SetStatus(codes.Error, err.Error())
 		slog.ErrorContext(ctx, "system error occurred", "error", err)

@@ -19,7 +19,7 @@ func TestGetOptions(t *testing.T) {
 
 	// Get the file path
 	path := tmpFile.Name()
-
+	t.Logf("path %s", path)
 	// Test with direct arguments instead of modifying os.Args
 	args := []string{"-credentials", path, "-postgres", "postgres://user:pass@localhost:5432/testdb"}
 	opts, err := ParseOptions(args)

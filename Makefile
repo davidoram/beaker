@@ -45,6 +45,10 @@ build: migrate-db sqlc
 	mkdir -p bin
 	go build -o bin/beaker cmd/*.go
 
+.PHONY: test
+test:
+	go test ./...
+
 .PHONY: terminate-conns
 terminate-conns:
 	psql "$(DB_URL)" -c "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = 'beaker_$(DB_ENV)' AND pid <> pg_backend_pid();"

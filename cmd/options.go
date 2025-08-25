@@ -45,7 +45,7 @@ func ParseOptions(args []string) (Options, error) {
 		CredentialsFile: filepath.Join(homeDir, "NATS_CREDS_APP.creds"),
 		PostgresURL:     "postgres://postgres:password@localhost:5432/beaker_development?sslmode=disable",
 		NatsURL:         "tls://connect.ngs.global",
-		SchemaDir:       filepath.Join(workingDir, "schemas"),
+		SchemaDir:       filepath.Join(workingDir, "..", "schemas"),
 	}
 
 	// Use flags to parse command line arguments

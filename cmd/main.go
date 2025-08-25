@@ -122,18 +122,11 @@ func connectToNATSOrExit(ctx context.Context, natsURL, credentialsFile string) *
 }
 
 func makeJSONSchemaCompilerOrExit(ctx context.Context, schemaDir string) *jsonschema.Compiler {
-	loader, err := utility.NewLoader(map[string]string{
-		"http://github.com/davidoram/beaker/schemas/": schemaDir,
-	})
+	compiler, err := utility.NewJSONSchemaCompiler(ctx, schemaDir)
 	if err != nil {
 		slog.ErrorContext(ctx, "Unable to create JSON schema loader", err)
 		os.Exit(1)
 	}
-	compiler := jsonschema.NewCompiler()
-	compiler.UseLoader(loader)
-	compiler.AssertContent()
-	compiler.AssertFormat()
-	compiler.DefaultDraft(jsonschema.Draft2020)
 	return compiler
 }
 

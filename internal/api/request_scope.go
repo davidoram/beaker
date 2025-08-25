@@ -26,7 +26,7 @@ import (
 // When the API receives a call it should create a NewRequestScope instance
 // Functions that work through the various phases of the request, check if any preceding
 // phases encountered an error by checking if rs.err is nil before proceeding.
-// If rs.err is not nil, it means an error has occurred and the function should 
+// If rs.err is not nil, it means an error has occurred and the function should
 // act appropriately.
 // This allows for early exit from the function without further processing
 type requestScope struct {
@@ -83,7 +83,6 @@ func (rs *requestScope) setupDbConn(ctx context.Context, pool *pgxpool.Pool) err
 	return nil
 }
 
-
 // AddCallerError adds a 'caller' error to the request scope. Caller errors represent problems made by
 // the API caller. It only stores the first error encountered, but it logs all errors
 func (rs *requestScope) AddCallerError(ctx context.Context, err error) {
@@ -101,7 +100,7 @@ func (rs *requestScope) addError(ctx context.Context, err error, isSystemError b
 	ctx, span := tracer.Start(ctx, "add error")
 	defer span.End()
 
-	// Mark system errors so that they will can be filtered easily inside OpenTelemetry 
+	// Mark system errors so that they will can be filtered easily inside OpenTelemetry
 	if isSystemError {
 		span.SetStatus(codes.Error, err.Error())
 		slog.ErrorContext(ctx, "system error occurred", "error", err)
@@ -265,7 +264,7 @@ func (rs *requestScope) MakeStockAddResponse(ctx context.Context, inventory *db.
 		resp.Error = utility.Ptr(rs.GetError().Error())
 	} else {
 		resp.OK = true
-		resp.ProductSKU = utility.Ptr(schemas.ProductSKU(inventory.ProductSku))
+		resp.ProductSKU = utility.Ptr(inventory.ProductSku)
 		resp.Quantity = utility.Ptr(int(inventory.StockLevel))
 	}
 	return &resp
@@ -281,11 +280,11 @@ func (rs *requestScope) GetStock(ctx context.Context, req schemas.StockGetReques
 		return nil
 	}
 
-	inventory, err := rs.queries.GetInventory(ctx, req.ProductSKU.String())
+	inventory, err := rs.queries.GetInventory(ctx, req.ProductSKU)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			slog.InfoContext(ctx, "no inventory found for product", "product_sku", req.ProductSKU.String())
-			return &db.Inventory{ProductSku: req.ProductSKU.String(), StockLevel: 0}
+			slog.InfoContext(ctx, "no inventory found for product", "product_sku", req.ProductSKU)
+			return &db.Inventory{ProductSku: req.ProductSKU, StockLevel: 0}
 		}
 		rs.AddSystemError(ctx, err)
 		return nil
@@ -304,7 +303,7 @@ func (rs *requestScope) MakeStockGetResponse(ctx context.Context, inventory *db.
 		resp.Error = utility.Ptr(rs.GetError().Error())
 	} else {
 		resp.OK = true
-		resp.ProductSKU = utility.Ptr(schemas.ProductSKU(inventory.ProductSku))
+		resp.ProductSKU = utility.Ptr(inventory.ProductSku)
 		resp.Quantity = utility.Ptr(int(inventory.StockLevel))
 	}
 	return &resp
@@ -321,7 +320,7 @@ func (rs *requestScope) RemoveStock(ctx context.Context, req schemas.StockRemove
 	}
 
 	params := db.RemoveInventoryParams{
-		ProductSku: req.ProductSKU.String(),
+		ProductSku: req.ProductSKU,
 		StockLevel: int32(req.Quantity),
 	}
 	inventory, err := rs.queries.RemoveInventory(ctx, params)
@@ -360,7 +359,7 @@ func (rs *requestScope) MakeStockRemoveResponse(ctx context.Context, inventory *
 		resp.Error = utility.Ptr(rs.GetError().Error())
 	} else {
 		resp.OK = true
-		resp.ProductSKU = utility.Ptr(schemas.ProductSKU(inventory.ProductSku))
+		resp.ProductSKU = utility.Ptr(inventory.ProductSku)
 		resp.Quantity = utility.Ptr(int(inventory.StockLevel))
 	}
 	return &resp

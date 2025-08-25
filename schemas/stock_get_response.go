@@ -8,8 +8,8 @@ type StockGetResponse struct {
 	OK bool `json:"ok"`
 
 	// Success response fields
-	ProductSKU *ProductSKU `json:"product-sku,omitempty"`
-	Quantity   *int        `json:"quantity,omitempty"`
+	ProductSKU *string `json:"product-sku,omitempty"`
+	Quantity   *int    `json:"quantity,omitempty"`
 
 	// Error response field
 	Error *string `json:"error,omitempty"`

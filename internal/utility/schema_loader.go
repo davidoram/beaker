@@ -1,6 +1,7 @@
 package utility
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -10,6 +11,22 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
+
+// NewJSONSchemaCompiler creates a new JSON schema compiler with the given schema directory.
+func NewJSONSchemaCompiler(ctx context.Context, schemaDir string) (*jsonschema.Compiler, error) {
+	loader, err := NewLoader(map[string]string{
+		"http://github.com/davidoram/beaker/schemas/": schemaDir,
+	})
+	if err != nil {
+		return nil, err
+	}
+	compiler := jsonschema.NewCompiler()
+	compiler.UseLoader(loader)
+	compiler.AssertContent()
+	compiler.AssertFormat()
+	compiler.DefaultDraft(jsonschema.Draft2020)
+	return compiler, nil
+}
 
 // NewLoader creates a custom JSON schema loader that maps URL prefixes to local directories.
 // It supports both HTTP and file-based loading.

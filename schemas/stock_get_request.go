@@ -7,5 +7,5 @@ const (
 // StockGetRequest represents the request structure for getting stock information.
 // It corresponds to the stock-get.request.json schema.
 type StockGetRequest struct {
-	ProductSKU ProductSKU `json:"product-sku" validate:"required"`
+	ProductSKU string `json:"product-sku" validate:"required"`
 }

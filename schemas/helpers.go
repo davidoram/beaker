@@ -3,7 +3,7 @@ package schemas
 // Helper functions for creating response structures
 
 // NewStockAddSuccessResponse creates a successful StockAddResponse.
-func NewStockAddSuccessResponse(productSKU ProductSKU, quantity int) StockAddResponse {
+func NewStockAddSuccessResponse(productSKU string, quantity int) StockAddResponse {
 	return StockAddResponse{
 		ProductSKU: &productSKU,
 		Quantity:   &quantity,
@@ -18,7 +18,7 @@ func NewStockAddErrorResponse(errorMsg string) StockAddResponse {
 }
 
 // NewStockRemoveSuccessResponse creates a successful StockRemoveResponse.
-func NewStockRemoveSuccessResponse(productSKU ProductSKU, quantity int) StockRemoveResponse {
+func NewStockRemoveSuccessResponse(productSKU string, quantity int) StockRemoveResponse {
 	return StockRemoveResponse{
 		ProductSKU: &productSKU,
 		Quantity:   &quantity,
@@ -33,7 +33,7 @@ func NewStockRemoveErrorResponse(errorMsg string) StockRemoveResponse {
 }
 
 // NewStockGetSuccessResponse creates a successful StockGetResponse.
-func NewStockGetSuccessResponse(productSKU ProductSKU, quantity int) StockGetResponse {
+func NewStockGetSuccessResponse(productSKU string, quantity int) StockGetResponse {
 	return StockGetResponse{
 		ProductSKU: &productSKU,
 		Quantity:   &quantity,

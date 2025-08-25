@@ -12,6 +12,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
+// App represents the application context
 type App struct {
 	nc       *nats.Conn
 	db       *pgxpool.Pool

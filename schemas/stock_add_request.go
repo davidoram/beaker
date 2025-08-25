@@ -7,6 +7,6 @@ const (
 // StockAddRequest represents the request structure for adding stock.
 // It corresponds to the stock-add.request.json schema.
 type StockAddRequest struct {
-	ProductSKU ProductSKU `json:"product-sku"`
-	Quantity   int        `json:"quantity"`
+	ProductSKU string `json:"product-sku"`
+	Quantity   int    `json:"quantity"`
 }

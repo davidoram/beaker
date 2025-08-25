@@ -17,7 +17,7 @@ import (
 )
 
 func TestApp(t *testing.T) {
-	server := RunServerOnPort(-1)
+	server := runNatsServerOnPort(t, -1)
 	defer server.Shutdown()
 
 	nc, err := nats.Connect(server.Addr().String())
@@ -57,6 +57,16 @@ func TestApp(t *testing.T) {
 		}
 	})
 
+	t.Run("malformed add request", func(t *testing.T) {
+
+		// sku doesn't conform to the schema http://github.com/davidoram/beaker/schemas/product-sku.json
+		uniqueSku := fmt.Sprintf("$$-%d", time.Now().UnixNano())
+
+		resp := addStock(t, nc, uniqueSku, 25)
+		require.False(t, resp.OK)
+		require.Contains(t, *resp.Error, fmt.Sprintf("product-sku': '%s' does not match pattern", uniqueSku))
+	})
+
 	t.Run("remove stock", func(t *testing.T) {
 
 		uniqueSku := fmt.Sprintf("sku-%d", time.Now().UnixNano())
@@ -78,6 +88,16 @@ func TestApp(t *testing.T) {
 
 		require.False(t, resp.OK)
 		assert.Equal(t, fmt.Sprintf("stock level cannot go below zero for %s", uniqueSku), *resp.Error)
+	})
+
+	t.Run("malformed remove request", func(t *testing.T) {
+
+		// sku doesn't conform to the schema http://github.com/davidoram/beaker/schemas/product-sku.json
+		uniqueSku := fmt.Sprintf("^%%-%d", time.Now().UnixNano())
+
+		resp := removeStock(t, nc, uniqueSku, 25)
+		require.False(t, resp.OK)
+		require.Contains(t, *resp.Error, fmt.Sprintf("product-sku': '%s' does not match pattern", uniqueSku))
 	})
 
 	t.Run("get stock balance", func(t *testing.T) {
@@ -103,6 +123,17 @@ func TestApp(t *testing.T) {
 		assert.Equal(t, uniqueSku, *resp.ProductSKU)
 		assert.Equal(t, 2, *resp.Quantity)
 	})
+
+	t.Run("malformed get request", func(t *testing.T) {
+
+		// sku doesn't conform to the schema http://github.com/davidoram/beaker/schemas/product-sku.json
+		uniqueSku := ""
+
+		resp := getStock(t, nc, uniqueSku)
+		require.False(t, resp.OK)
+		require.Contains(t, *resp.Error, fmt.Sprintf("product-sku': '%s' does not match pattern", uniqueSku))
+	})
+
 }
 
 func addStock(t *testing.T, nc *nats.Conn, uniqueSku string, quantity int) schemas.StockAddResponse {
@@ -164,12 +195,14 @@ func getStock(t *testing.T, nc *nats.Conn, uniqueSku string) schemas.StockGetRes
 	return resp
 }
 
-func RunServerOnPort(port int) *server.Server {
+func runNatsServerOnPort(t *testing.T, port int) *server.Server {
+	t.Helper()
 	opts := natsserver.DefaultTestOptions
 	opts.Port = port
-	return RunServerWithOptions(&opts)
+	return runNatsServerWithOptions(t, &opts)
 }
 
-func RunServerWithOptions(opts *server.Options) *server.Server {
+func runNatsServerWithOptions(t *testing.T, opts *server.Options) *server.Server {
+	t.Helper()
 	return natsserver.RunServer(opts)
 }

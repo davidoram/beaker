@@ -1,5 +1,7 @@
 package schemas
 
+import "github.com/davidoram/beaker/internal/utility"
+
 // StockAddResponse represents the response structure for adding stock.
 // It corresponds to the stock-add.response.json schema.
 // This implements the oneOf pattern using interface{} - you should check the actual type at runtime.
@@ -16,8 +18,7 @@ type StockAddResponse struct {
 }
 
 func (r *StockAddResponse) SetErrorAttributes(err error) {
-	errStr := err.Error()
-	r.Error = &errStr
+	r.Error = utility.Ptr(err.Error())
 	r.OK = false
 
 	r.ProductSKU = nil

@@ -43,10 +43,7 @@ func NewRequestScope(ctx context.Context, req micro.Request, pool *pgxpool.Pool)
 	rs := &requestScope{
 		req: req,
 	}
-	err := rs.setupDbConn(ctx, pool)
-	if err != nil {
-		rs.AddSystemError(ctx, err)
-	}
+	rs.setupDbConn(ctx, pool)
 	return rs
 }
 
@@ -63,38 +60,41 @@ func (rs *requestScope) Close(ctx context.Context) {
 
 // setupDbConn establishes a connection through the pgxpool.Pool, and wraps it into a Queries instance
 // which is then able to be used to access the database
-func (rs *requestScope) setupDbConn(ctx context.Context, pool *pgxpool.Pool) error {
+func (rs *requestScope) setupDbConn(ctx context.Context, pool *pgxpool.Pool) {
 	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "setup db conn")
 	defer span.End()
 
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
+		rs.AddSystemError(ctx, err)
 		span.SetStatus(codes.Error, err.Error())
-		return err
+		return
 	}
 	rs.conn = conn
 	rs.tx, err = conn.Begin(ctx)
 	if err != nil {
+		rs.AddSystemError(ctx, err)
 		span.SetStatus(codes.Error, err.Error())
-		return err
+		return
 	}
 	rs.queries = db.New(rs.tx)
-	return nil
 }
 
-// AddCallerError adds a 'caller' error to the request scope. Caller errors represent problems made by
-// the API caller. It only stores the first error encountered, but it logs all errors
+// AddCallerError adds a 'caller' error to the request scope which represents a problem made by
+// the API caller.
 func (rs *requestScope) AddCallerError(ctx context.Context, err error) {
 	rs.addError(ctx, err, false)
 }
 
-// AddSystemError adds a 'system' error to the request scope. System errors represent problems that occur within the system
-// It only stores the first error encountered, but it logs all errors
+// AddSystemError adds a 'system' error to the request scope which represents a problem that occurs inside our system
 func (rs *requestScope) AddSystemError(ctx context.Context, err error) {
 	rs.addError(ctx, err, true)
 }
 
+// adds an error, it only stores the first error encountered, but it logs all errors.
+// If its a system error will log at error level, and mark the span in error because as system owners we need
+// to be aware of these errors. Caller errors are logged at info level and do not mark the span in error
 func (rs *requestScope) addError(ctx context.Context, err error, isSystemError bool) {
 	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "add error")
@@ -103,9 +103,9 @@ func (rs *requestScope) addError(ctx context.Context, err error, isSystemError b
 	// Mark system errors so that they will can be filtered easily inside OpenTelemetry
 	if isSystemError {
 		span.SetStatus(codes.Error, err.Error())
-		slog.ErrorContext(ctx, "system error occurred", "error", err)
+		slog.ErrorContext(ctx, "system error", "error", err)
 	} else {
-		slog.InfoContext(ctx, "caller error occurred", "error", err)
+		slog.InfoContext(ctx, "caller error", "error", err)
 	}
 
 	if rs.err == nil {
@@ -125,7 +125,7 @@ func (rs *requestScope) ValidateJSON(ctx context.Context, compiler *jsonschema.C
 	ctx, span := tracer.Start(ctx, "validate JSON")
 	defer span.End()
 
-	if rs.err != nil {
+	if rs.HasError() {
 		return
 	}
 	if len(jsonData) == 0 {
@@ -143,8 +143,7 @@ func (rs *requestScope) ValidateJSON(ctx context.Context, compiler *jsonschema.C
 	}
 
 	if schema == nil {
-		err = fmt.Errorf("schema %s not found", schemaName)
-		rs.AddSystemError(ctx, err)
+		rs.AddSystemError(ctx, fmt.Errorf("schema %s not found", schemaName))
 		return
 	}
 
@@ -171,7 +170,7 @@ func DecodeRequest[T any](ctx context.Context, rs *requestScope) T {
 	defer span.End()
 
 	var decodedRequest T
-	if rs.err != nil {
+	if rs.HasError() {
 		return decodedRequest
 	}
 
@@ -194,9 +193,9 @@ func (rs *requestScope) CommitOrRollback(ctx context.Context) {
 		return
 	}
 
-	msg := "commit"
+	msg := "tx commit"
 	if rs.HasError() {
-		msg = "rollback"
+		msg = "tx rollback"
 	}
 	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, msg)
@@ -242,7 +241,7 @@ func (rs *requestScope) AddStock(ctx context.Context, req schemas.StockAddReques
 	ctx, span := tracer.Start(ctx, "add stock")
 	defer span.End()
 
-	if rs.err != nil {
+	if rs.HasError() {
 		return nil
 	}
 
@@ -281,7 +280,7 @@ func (rs *requestScope) GetStock(ctx context.Context, req schemas.StockGetReques
 	ctx, span := tracer.Start(ctx, "get stock")
 	defer span.End()
 
-	if rs.err != nil {
+	if rs.HasError() {
 		return nil
 	}
 
@@ -320,7 +319,7 @@ func (rs *requestScope) RemoveStock(ctx context.Context, req schemas.StockRemove
 	ctx, span := tracer.Start(ctx, "remove stock")
 	defer span.End()
 
-	if rs.err != nil {
+	if rs.HasError() {
 		return nil
 	}
 

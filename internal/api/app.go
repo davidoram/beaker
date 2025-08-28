@@ -46,6 +46,9 @@ func (app *App) makeService() error {
 		Name:        "StockService",
 		Version:     "0.1.0",
 		Description: "Manage product stock",
+		ErrorHandler: func(svc micro.Service, err *micro.NATSError) {
+			slog.Error("Service error occurred", "error", err)
+		},
 	}
 	svc, err := micro.AddService(app.nc, config)
 	if err != nil {

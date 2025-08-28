@@ -15,7 +15,7 @@ func TestGetOptions(t *testing.T) {
 	// Create a temporary file within that directory
 	tmpFile, err := os.CreateTemp(dir, "my-test-*.txt")
 	require.NoError(t, err, "Failed to create temporary file")
-	defer tmpFile.Close() // optional if just need the path
+	defer tmpFile.Close() //nolint:errcheck
 
 	// Get the file path
 	path := tmpFile.Name()
@@ -36,7 +36,7 @@ func TestGetOptionsError(t *testing.T) {
 	// Create a temporary file within that directory
 	tmpFile, err := os.CreateTemp(dir, "my-test-*.txt")
 	require.NoError(t, err, "Failed to create temporary file")
-	defer tmpFile.Close() // optional if just need the path
+	defer tmpFile.Close() //nolint:errcheck
 
 	// Get the file path
 	path := tmpFile.Name()

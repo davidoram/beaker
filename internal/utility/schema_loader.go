@@ -66,7 +66,7 @@ func loadFile(path string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return jsonschema.UnmarshalJSON(f)
 }
 
@@ -92,6 +92,6 @@ func (l *HTTPLoader) Load(url string) (any, error) {
 		_ = resp.Body.Close()
 		return nil, fmt.Errorf("%s returned status code %d", url, resp.StatusCode)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return jsonschema.UnmarshalJSON(resp.Body)
 }

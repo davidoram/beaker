@@ -32,7 +32,7 @@ func TestApp(t *testing.T) {
 
 	app, err := StartNewApp(nc, pool, compiler)
 	require.NoError(t, err)
-	defer app.Stop()
+	defer app.Stop() // nolint:errcheck
 
 	t.Run("add stock", func(t *testing.T) {
 

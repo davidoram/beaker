@@ -34,6 +34,7 @@ initial-tool-install:
 	go get -tool github.com/santhosh-tekuri/jsonschema/cmd/jv@v0.7.0
 	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
 	go get -tool github.com/equinix-labs/otel-cli@v0.4.5
+	go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
 
 
 .PHONY: clean
@@ -74,7 +75,14 @@ sqlc:
 	sqlc generate 
 
 .PHONY: lint
-lint:
+lint: go-lint schema-lint
+
+.PHONY: go-lint
+go-lint:
+	golangci-lint run
+
+.PHONY: schema-lint
+schema-lint:
 	@echo "Validating JSON Schema files..."
 	@for schema in schemas/*.json; do \
 		echo "Validating $$schema"; \

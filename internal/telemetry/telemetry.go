@@ -77,7 +77,11 @@ func NewTelemetryProvider(ctx context.Context, serviceName string) (shutdown fun
 	shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
 	otel.SetMeterProvider(meterProvider)
 
-	runtime.Start(runtime.WithMeterProvider(meterProvider))
+	err = runtime.Start(runtime.WithMeterProvider(meterProvider))
+	if err != nil {
+		handleErr(err)
+		return
+	}
 
 	// Set up logger provider.
 	loggerProvider, err := newLoggerProvider(ctx, res)

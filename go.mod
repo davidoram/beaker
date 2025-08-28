@@ -179,3 +179,5 @@ require (
 	modernc.org/memory v1.9.1 // indirect
 	modernc.org/sqlite v1.37.0 // indirect
 )
+
+replace github.com/nats-io/go-nats => github.com/nats-io/nats.go v1.45.0

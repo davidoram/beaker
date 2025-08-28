@@ -33,7 +33,7 @@ func main() {
 	compiler := makeJSONSchemaCompilerOrExit(ctx, opts.SchemaDir)
 	setupSignalHandler(ctx, cancel)
 	app := startAppOrExit(nc, pool, compiler)
-	defer app.Stop()
+	defer app.Stop() // nolint:errcheck
 	slog.InfoContext(ctx, "beaker is running")
 
 	// Wait for the context to be cancelled
@@ -46,7 +46,7 @@ func getOptionsOrExit() Options {
 	opts, err := GetOptions()
 	if err != nil {
 		// If options parsing fails, print the error and exit with an error code
-		os.Stderr.WriteString("Error parsing options: " + err.Error() + "\n")
+		_, _ = os.Stderr.WriteString("Error parsing options: " + err.Error() + "\n")
 		os.Exit(1)
 	}
 	return opts
@@ -67,7 +67,7 @@ func setupTelemetryOrExit(ctx context.Context, opts Options) func() {
 		fmt.Fprintf(os.Stderr, "Failed to initialize telemetry: %v\n", err)
 		os.Exit(1)
 	}
-	return func() { shutdown(ctx) }
+	return func() { _ = shutdown(ctx) }
 }
 
 func setupPostgresPoolOrExit(ctx context.Context, postgresUrl string) *pgxpool.Pool {

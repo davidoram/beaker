@@ -16,10 +16,10 @@ type Options struct {
 }
 
 var (
-	ErrBadNatsURL         = errors.New("Invalid NATS URL")
-	ErrBadCredentialsFile = errors.New("Invalid credentials file path")
-	ErrBadPostgresURL     = errors.New("Invalid Postgres URL")
-	ErrBadSchemaDir       = errors.New("Invalid schema directory path")
+	ErrBadNatsURL         = errors.New("invalid NATS URL")
+	ErrBadCredentialsFile = errors.New("invalid credentials file path")
+	ErrBadPostgresURL     = errors.New("invalid Postgres URL")
+	ErrBadSchemaDir       = errors.New("invalid schema directory path")
 )
 
 // Parses command line arguments from os.Args[1:] and returns an Options struct
@@ -45,7 +45,7 @@ func ParseOptions(args []string) (Options, error) {
 		CredentialsFile: filepath.Join(homeDir, "NATS_CREDS_APP.creds"),
 		PostgresURL:     "postgres://postgres:password@localhost:5432/beaker_development?sslmode=disable",
 		NatsURL:         "tls://connect.ngs.global",
-		SchemaDir:       filepath.Join(workingDir, "..", "schemas"),
+		SchemaDir:       filepath.Join(workingDir, "schemas"),
 	}
 
 	// Use flags to parse command line arguments

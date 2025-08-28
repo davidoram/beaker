@@ -221,14 +221,19 @@ func (rs *requestScope) CommitOrRollback(ctx context.Context) {
 	}
 }
 
-func (rs *requestScope) RespondJSON(ctx context.Context, req micro.Request, response schemas.APIResponse) error {
+func (rs *requestScope) RespondJSON(ctx context.Context, req micro.Request, response schemas.APIResponse) {
 	tracer := telemetry.GetTracer()
 	_, span := tracer.Start(ctx, "respond JSON")
 	defer span.End()
 	if rs.HasError() {
+		slog.ErrorContext(ctx, "Request has error", "error", rs.GetError())
 		response.SetErrorAttributes(rs.GetError())
 	}
-	return req.RespondJSON(response)
+	err := req.RespondJSON(response)
+	if err != nil {
+		response.SetErrorAttributes(rs.GetError())
+		slog.ErrorContext(ctx, "RespondJSON returned error", "error", err)
+	}
 }
 
 // AddStock adds stock to the inventory.
@@ -255,7 +260,7 @@ func (rs *requestScope) AddStock(ctx context.Context, req schemas.StockAddReques
 
 func (rs *requestScope) MakeStockAddResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockAddResponse {
 	tracer := telemetry.GetTracer()
-	ctx, span := tracer.Start(ctx, "build stock-add response")
+	_, span := tracer.Start(ctx, "build stock-add response")
 	defer span.End()
 
 	resp := schemas.StockAddResponse{}
@@ -294,7 +299,7 @@ func (rs *requestScope) GetStock(ctx context.Context, req schemas.StockGetReques
 
 func (rs *requestScope) MakeStockGetResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockGetResponse {
 	tracer := telemetry.GetTracer()
-	ctx, span := tracer.Start(ctx, "build stock-get response")
+	_, span := tracer.Start(ctx, "build stock-get response")
 	defer span.End()
 
 	resp := schemas.StockGetResponse{}

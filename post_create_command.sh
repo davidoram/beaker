@@ -9,9 +9,11 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-# Lets ensure that we have the latest code from the remote repository
-git pull origin
-echo "Code updated from remote repository."
+if [ -z "$GITHUB_ACTIONS" ]; then
+    # Lets ensure that we have the latest code from the remote repository
+    git pull origin
+    echo "Code updated from remote repository."
+fi
 
 # Decode Github codespace user secrets - see https://github.com/settings/codespaces
 

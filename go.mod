@@ -13,16 +13,21 @@ tool (
 )
 
 require (
+	github.com/exaring/otelpgx v0.9.3
 	github.com/google/uuid v1.6.0
+	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
+	github.com/jackc/pgx/v5 v5.7.4
+	github.com/nats-io/nats.go v1.45.0
+	github.com/samber/slog-multi v1.4.1
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/stretchr/testify v1.10.0
-	go.opentelemetry.io/contrib/bridges/otelslog v0.11.0
+	go.opentelemetry.io/contrib/bridges/otelslog v0.12.0
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.61.0
 	go.opentelemetry.io/otel v1.37.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.13.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.37.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.37.0
 	go.opentelemetry.io/otel/log v0.13.0
-	go.opentelemetry.io/otel/metric v1.37.0
 	go.opentelemetry.io/otel/sdk v1.37.0
 	go.opentelemetry.io/otel/sdk/log v0.13.0
 	go.opentelemetry.io/otel/sdk/metric v1.37.0
@@ -57,7 +62,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emicklei/dot v1.8.0 // indirect
 	github.com/equinix-labs/otel-cli v0.4.5 // indirect
-	github.com/exaring/otelpgx v0.9.3 // indirect
 	github.com/expr-lang/expr v1.17.2 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
@@ -85,7 +89,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.7.4 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.6.7 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
@@ -105,10 +108,11 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/nats-io/gnatsd v1.4.1 // indirect
 	github.com/nats-io/jsm.go v0.2.3 // indirect
 	github.com/nats-io/jwt/v2 v2.7.4 // indirect
-	github.com/nats-io/nats-server/v2 v2.11.3 // indirect
-	github.com/nats-io/nats.go v1.42.0 // indirect
+	github.com/nats-io/nats-server v1.4.1 // indirect
+	github.com/nats-io/nats-server/v2 v2.11.8 // indirect
 	github.com/nats-io/natscli v0.2.3 // indirect
 	github.com/nats-io/nkeys v0.4.11 // indirect
 	github.com/nats-io/nsc/v2 v2.11.0 // indirect
@@ -132,9 +136,10 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/riza-io/grpc-go v0.2.0 // indirect
 	github.com/rubenv/sql-migrate v1.8.0 // indirect
+	github.com/samber/lo v1.51.0 // indirect
+	github.com/samber/slog-common v0.19.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/cmd/jv v0.7.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.8.0 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect
@@ -149,17 +154,18 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.37.0 // indirect
+	go.opentelemetry.io/otel/metric v1.37.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.7.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/crypto v0.39.0 // indirect
-	golang.org/x/net v0.41.0 // indirect
-	golang.org/x/sync v0.15.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/term v0.32.0 // indirect
-	golang.org/x/text v0.26.0 // indirect
-	golang.org/x/time v0.11.0 // indirect
+	golang.org/x/crypto v0.41.0 // indirect
+	golang.org/x/net v0.42.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/term v0.34.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/time v0.12.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/grpc v1.73.0 // indirect
@@ -173,3 +179,5 @@ require (
 	modernc.org/memory v1.9.1 // indirect
 	modernc.org/sqlite v1.37.0 // indirect
 )
+
+replace github.com/nats-io/go-nats => github.com/nats-io/nats.go v1.45.0

@@ -3,6 +3,7 @@ package main
 import (
 	"io/fs"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,13 +16,13 @@ func TestGetOptions(t *testing.T) {
 	// Create a temporary file within that directory
 	tmpFile, err := os.CreateTemp(dir, "my-test-*.txt")
 	require.NoError(t, err, "Failed to create temporary file")
-	defer tmpFile.Close() // optional if just need the path
+	defer tmpFile.Close() //nolint:errcheck
 
 	// Get the file path
 	path := tmpFile.Name()
-
+	t.Logf("path %s", path)
 	// Test with direct arguments instead of modifying os.Args
-	args := []string{"-credentials", path, "-postgres", "postgres://user:pass@localhost:5432/testdb"}
+	args := []string{"-credentials", path, "-postgres", "postgres://user:pass@localhost:5432/testdb", "-schema", filepath.Join("..", "schemas")}
 	opts, err := ParseOptions(args)
 	require.NoError(t, err)
 	require.Equal(t, path, opts.CredentialsFile)
@@ -36,7 +37,7 @@ func TestGetOptionsError(t *testing.T) {
 	// Create a temporary file within that directory
 	tmpFile, err := os.CreateTemp(dir, "my-test-*.txt")
 	require.NoError(t, err, "Failed to create temporary file")
-	defer tmpFile.Close() // optional if just need the path
+	defer tmpFile.Close() //nolint:errcheck
 
 	// Get the file path
 	path := tmpFile.Name()

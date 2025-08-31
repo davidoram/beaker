@@ -34,12 +34,21 @@ initial-tool-install:
 	go get -tool github.com/santhosh-tekuri/jsonschema/cmd/jv@v0.7.0
 	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
 	go get -tool github.com/equinix-labs/otel-cli@v0.4.5
+	go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
+
+
+.PHONY: clean
+clean:
+	rm -rf ./bin/*
 
 .PHONY: build
 build: migrate-db sqlc
 	mkdir -p bin
-	go build -o bin/beaker $(shell ls *.go | grep -v '_test.go')
+	go build -o bin/beaker cmd/*.go
 
+.PHONY: test
+test:
+	go test ./...
 
 .PHONY: terminate-conns
 terminate-conns:
@@ -65,8 +74,24 @@ recreate-db: drop-db create-db migrate-db
 sqlc:
 	sqlc generate 
 
+.PHONY: lint
+lint: go-lint schema-lint
+
+.PHONY: go-lint
+go-lint:
+	golangci-lint run
+
+.PHONY: schema-lint
+schema-lint:
+	@echo "Validating JSON Schema files..."
+	@for schema in schemas/*.json; do \
+		echo "Validating $$schema"; \
+		jv --assert-format --draft 2020 "$$schema"  --map http://github.com/davidoram/beaker/schemas=schemas || exit 1; \
+	done
+	@echo "All schemas are valid!"
+
 .PHONY: run
-run: build  
+run: lint build  
 	OTEL_SERVICE_NAME=beaker \
 	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=codespace \
 	OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \
@@ -75,7 +100,7 @@ run: build
 	OTEL_EXPORTER_OTLP_COMPRESSION=gzip \
 	OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
 	OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta \
-	bin/beaker --credentials $(HOME)/credentials.txt --postgres "postgres://postgres:password@localhost:5432/beaker_$(DB_ENV)?sslmode=disable"
+	bin/beaker --postgres "postgres://postgres:password@localhost:5432/beaker_$(DB_ENV)?sslmode=disable"
 
 .PHONY: test-otel
 test-otel:
@@ -96,3 +121,16 @@ test-otel-error:
 	OTEL_EXPORTER_OTLP_COMPRESSION=gzip \
 	OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
 	otel-cli exec --name "test error" --attrs "beaker.foo=bar,beaker.baz=qux" false
+
+.PHONY: test-add
+test-add:
+	nats req stock.add '{"product-sku": "coffee-cup", "quantity": 10}'
+
+.PHONY: test-get
+test-get:
+	nats req stock.get '{"product-sku": "coffee-cup"}'
+	nats req stock.get '{"product-sku": "coaster"}'
+
+.PHONY: test-remove
+test-remove:
+	nats req stock.remove '{"product-sku": "coffee-cup", "quantity": 7}'

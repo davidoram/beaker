@@ -1,0 +1,44 @@
+name: PR CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >
+          --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DB_URL: postgres://postgres:password@localhost:5432/postgres?sslmode=disable
+      DB_ENV: test
+      NEW_RELIC_API_KEY: dummy-key
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Run setup
+        run: make setup
+      - name: Run post_create_command.sh
+        run: ./post_create_command.sh
+      - name: Recreate DB, build, test, lint, and integration tests
+        run: |
+          make recreate-db
+          make build
+          make test
+          make lint
+          make test-add
+          make test-get
+          make test-remove

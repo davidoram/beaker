@@ -53,7 +53,8 @@ test:
 
 .PHONY: postgres-ready
 postgres-ready:
-	wait-for-it -t 30 -w localhost:5432 -- echo "Postgres ready"
+	pg_isready -h localhost -p 5432 || sleep 5
+	wait-for-it -t 30 -w localhost:5432 -w 127.0.0.1:5432 -s -- echo "Postgres ready"
 
 
 .PHONY: terminate-conns

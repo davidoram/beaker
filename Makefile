@@ -34,8 +34,8 @@ initial-tool-install:
 	go get -tool github.com/santhosh-tekuri/jsonschema/cmd/jv@v0.7.0
 	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
 	go get -tool github.com/equinix-labs/otel-cli@v0.4.5
-	go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
 	go get -tool github.com/roerohan/wait-for-it@v0.2.14
+
 
 
 .PHONY: clean
@@ -86,7 +86,7 @@ lint: go-lint schema-lint
 
 .PHONY: go-lint
 go-lint:
-	golangci-lint run
+	docker run --rm -v $(PWD):/app -w /app golangci/golangci-lint:v2.4.0 golangci-lint run
 
 .PHONY: schema-lint
 schema-lint:

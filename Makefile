@@ -5,17 +5,17 @@ DB_ENV?=development
 docker-compose-down:
 	@if [ "$$GITHUB_ACTIONS" = "true" ]; then \
 		echo "Skipping docker-compose-down in GitHub Actions"; \
-		exit 0; \
+	else \
+		docker-compose -f .devcontainer/docker-compose.yml down  --remove-orphans || true; \
 	fi
-	docker-compose -f .devcontainer/docker-compose.yml down  --remove-orphans || true
 
 .PHONY: docker-compose-up
 docker-compose-up:
 	@if [ "$$GITHUB_ACTIONS" = "true" ]; then \
 		echo "Skipping docker-compose-up in GitHub Actions"; \
-		exit 0; \
+	else \
+		NEW_RELIC_API_KEY=$${NEW_RELIC_API_KEY:-dummy-key} docker-compose -f .devcontainer/docker-compose.yml up -d \
 	fi
-	NEW_RELIC_API_KEY=$${NEW_RELIC_API_KEY:-dummy-key} docker-compose -f .devcontainer/docker-compose.yml up -d
 
 .PHONY: restart-docker-compose
 restart-docker-compose: docker-compose-down docker-compose-up

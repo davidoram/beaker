@@ -30,4 +30,5 @@ jobs:
         run: ./post_create_command.sh
       - name: Recreate DB, build, test, lint, and integration tests
         run: |
-          DB_ENV=test make recreate-db build test lint
+          DB_ENV=development make recreate-db build
+          DB_ENV=test make recreate-db test lint

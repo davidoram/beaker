@@ -5,6 +5,7 @@ go 1.24.2
 tool (
 	github.com/equinix-labs/otel-cli
 	github.com/nats-io/natscli/nats
+	github.com/roerohan/wait-for-it
 	github.com/rubenv/sql-migrate
 	github.com/rubenv/sql-migrate/sql-migrate
 	github.com/rubenv/sql-migrate/sqlparse
@@ -135,6 +136,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/riza-io/grpc-go v0.2.0 // indirect
+	github.com/roerohan/wait-for-it v0.2.14 // indirect
 	github.com/rubenv/sql-migrate v1.8.0 // indirect
 	github.com/samber/lo v1.51.0 // indirect
 	github.com/samber/slog-common v0.19.0 // indirect

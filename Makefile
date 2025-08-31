@@ -35,6 +35,7 @@ initial-tool-install:
 	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
 	go get -tool github.com/equinix-labs/otel-cli@v0.4.5
 	go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
+	go get -tool github.com/roerohan/wait-for-it@v0.2.14
 
 
 .PHONY: clean
@@ -50,20 +51,25 @@ build: migrate-db sqlc
 test:
 	go test ./...
 
+.PHONY: postgres-ready
+postgres-ready:
+	wait-for-it -t 30 -w localhost:5432 -- echo "Postgres ready"
+
+
 .PHONY: terminate-conns
-terminate-conns:
+terminate-conns: postgres-ready
 	psql "$(DB_URL)" -c "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = 'beaker_$(DB_ENV)' AND pid <> pg_backend_pid();"
 
 .PHONY: drop-db
-drop-db: terminate-conns
+drop-db: postgres-ready terminate-conns
 	psql "$(DB_URL)" -c "DROP DATABASE IF EXISTS beaker_$(DB_ENV);"
 
 .PHONY: create-db
-create-db:
+create-db: postgres-ready
 	 psql "$(DB_URL)" -c "CREATE DATABASE beaker_$(DB_ENV) WITH OWNER postgres ENCODING 'UTF8' LC_COLLATE='en_US.UTF-8' LC_CTYPE='en_US.UTF-8' TEMPLATE template0;"
 
 .PHONY: migrate-db
-migrate-db:
+migrate-db: postgres-ready
 	sql-migrate up --config dbconfig.yml --env $(DB_ENV)
 
 .PHONY: recreate-db
@@ -71,7 +77,7 @@ recreate-db: drop-db create-db migrate-db
 	@echo "Database 'beaker_$(DB_ENV)' recreated successfully."
 
 .PHONY: sqlc
-sqlc:
+sqlc: postgres-ready
 	sqlc generate 
 
 .PHONY: lint
@@ -91,7 +97,7 @@ schema-lint:
 	@echo "All schemas are valid!"
 
 .PHONY: run
-run: lint build  
+run: lint build postgres-ready
 	OTEL_SERVICE_NAME=beaker \
 	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=codespace \
 	OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \

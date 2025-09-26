@@ -56,7 +56,7 @@ Our microservice code needs a way to communicate with the outside world, and we 
 
 Well this is where Synadia come into the picture. They are the commercial company behind NATS and they offer a hosted NATS service caled Synadia Cloud. A hosted service means that you pay Synadia and they will run NATS on your behalf.  Lets take a look at what a Synadia Cloud gives us:
 
-- The core NATS messaging platform, including Jetstream messaging storage
+- The core NATS messaging platform, which includes Jetstream persistent messaging
 - A Web UI Console for management
 - HTTP Gateway
 - Connectors
@@ -82,4 +82,50 @@ For me, one of the main drawcards for using Synadia Cloud is that they provide, 
 
 Of course not everyone needs this kind of service, but it can save your team a lot of time and effort if these things are already convered off. You can focus on building a great product.
 
-You will notice that the inventory microservice publishes changes as events to Jetstream.  This is an example of an 'event-driven' architecture. In our case when something intersting happens inside the inventory service
+You will notice that the inventory microservice publishes changes as events to Jetstream.  This is an example of an 'event-driven' architecture. In our case when something interesting happens inside the inventory service (Low stock event), so that is published as a event into NATS, and we have configured NATS to capture those messages in an persistent message stream.  Why is that useful?  It allows consumers to connect to that stream and read the messages.  Because the messages are stored to disc, if the consumer goes offline, it can re-join later and catch up on all the messages it missed while it was offline.  Think of it like a holding bay for those messages, where they can be stored temporarily until the consumers are ready for them.   This style of architecture where we offer actions orient APIs which allow callers to do something actively, in conjunction with events that can be passively consumed allows for you to build applications on top of these services in a very flexible manner.
+
+The last piece of the diagram shows NewRelic as our OpenTelemetry provider.  OpenTelemetry provides a standardized way for your app to collect metrics, logs, and traces about its behavior and performance. That information makes it easier to understand, debug, and monitor applications. If multiple systems all use open telemetry their information can be connected together.  Then you can choose the vendor that suits you best to view all that collected information. There are lots to choose from https://opentelemetry.io/ecosystem/vendors/ so you can choose based on price, or performance.  I've opted to go with NewRelic because I use it in my day job, so I know how to navigate around its interface.
+
+I think of OpenTelemetry like the dashboard of your car.  You have all sorts of guages and warning lights that help you understand how teh engine (your application) is working. It will help us answer questions like, is the engine running, how fast id it workng, how much load is on the system, and is it about to break.
+
+OK Thats enough about the high level architecture, lets focus in on the API that we are building:
+
+## System Goals
+
+If you scroll down on the same page to the "system Goals"  we will look at them one by one.
+
+The goal is to build a basic inventory API that allows us to track quanity of different products.  It tells us that products are identified by a `product-sku`, and the three operation we have are to add, remove stock, and to query to see the current level.
+
+The business rules section explains what constraints we want the system to maintain.
+
+API endpoints explain each of the operations.
+
+## Technical requirements 
+
+Making the API accessaible via teh NATS and HTTP protocol is straightforward. Weve already discussed why is useful to give two options, but I didn't explain why you might want to encourage your callers to try the NATS protocol option. With NATS you get the following advantages:
+
+- Lower latency & higher throughput. the NATS client keeps a persistent connection and uses a lighter weight protocol.
+- Bidirectional comms. Once connected the caller can send and recieve data from the NATS server. It natively support streaming style operations.
+- Resiliance. The NATS client will automatically route requests across the cluster giving us better availability and fault tolerance.
+- Security. With a NATS persistent connection the callers authenticate once and stay secuerly authentcated rather then having to authenticate each call.
+
+
+Our API requests and responses will use the JSON format. For those that don't know JSON is a human and machine readable format. https://en.wikipedia.org/wiki/JSON.  The Unix environment demonstrates how we can build powerful applications by using text oriented tools.  Many people fall into the trap of worrying that their data isn't compact enough over the wire and they are lossing a lot of performance, but that concern should be tempered wityh how easy it is to start using your system, constructing input payloads and understaning responses.  Using a text format like JSON means we can eyeball the data and check very easily if things look right.  If we were to use a binary format like protobuf then we need special tools to help us do that, and any extra layer of tools slows us down.  The other advantage to textual formats is that other tools can manipulate the data from our system.  There is a large list of JSON tools and systems available https://github.com/burningtree/awesome-json
+
+OK so JSON is our data format, but we need to layer some structure over that. We need to validate all out API inputs and very strictly control our API outputs.  To help us we draw on another standard called JSON Schema https://json-schema.org. This allows us to define what our JSON data looks like and enforce those rules.   This makes our validation and conformance to easy to implement.  With each incoming request we get the JSON Schema library to check if its valid before proceeding.  Like JSON, JSON Schema is an open standard so its used in tools like OpenAPI to define API specifications.  By adopting a standard we are able to integrate with other systems and tools more easily.
+
+Next on the list we have a requirement to implement tests to verify our system is working correctly. This is always a good idea, because it gives us confidence that when we make changes they are working correctly and we haven't broken something inadvertatly.   We will go through our test code in a later video.
+
+Our last requirement is to capture telemetry using the open telemetry standard. We have already discussed what open telemetry is, and we wnat to use it so we cna oberve our application becahious at runtime.
+
+## Standards and Organisations
+
+If you scroll down in the page you will see some of the projects that this application uses, wither during development, or after its been deployed.  I added this so you can get a sense of what the projects are, and how they inter-relate.
+
+Standards are useful because if they are widely adopted, and we make our applications follow them to then we get the benefits of joining a community.  For example I've used `git` and github as my source code control tool. Because gits a widely used tool, many organisations like github have standardised on its use, so I can take my git skills and use then inside my  github environment.
+
+Lets look at the other tools, systems and standards.
+
+This briongs us to the end of our video on our "High Level Architecture", I look forward to seeing you in the next video where we cover off the 'Development environment'.
+
+Remember "Iron sharpens iron, and one man sharpens another.”. Hit the subscribe button if you wnat to be notified when the next video is out. See you next time.

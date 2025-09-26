@@ -6,20 +6,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
 
 	"github.com/davidoram/beaker/internal/db"
 	"github.com/davidoram/beaker/internal/telemetry"
-	"github.com/davidoram/beaker/internal/utility"
 	"github.com/davidoram/beaker/schemas"
-	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"go.opentelemetry.io/otel/codes"
 )
+
+const LowStockThreshold = 10
 
 // requestScope holds the context for a single request.
 // It holds the request and any errors that occur during processing.
@@ -30,6 +31,7 @@ import (
 // act appropriately.
 // This allows for early exit from the function without further processing
 type requestScope struct {
+	nc  *nats.Conn
 	req micro.Request
 	err error
 
@@ -39,9 +41,10 @@ type requestScope struct {
 }
 
 // NewRequestScope creates a new requestScope instance. It should be paired with a call to rs.Close(ctx) to guarantee cleanup.
-func NewRequestScope(ctx context.Context, req micro.Request, pool *pgxpool.Pool) *requestScope {
+func NewRequestScope(ctx context.Context, req micro.Request, nc *nats.Conn, pool *pgxpool.Pool) *requestScope {
 	rs := &requestScope{
 		req: req,
+		nc:  nc,
 	}
 	rs.setupDbConn(ctx, pool)
 	return rs
@@ -235,136 +238,36 @@ func (rs *requestScope) RespondJSON(ctx context.Context, req micro.Request, resp
 	}
 }
 
-// AddStock adds stock to the inventory.
-func (rs *requestScope) AddStock(ctx context.Context, req schemas.StockAddRequest) *db.Inventory {
+func (rs *requestScope) EmitEvent(ctx context.Context, event schemas.LowStockEvent) error {
+	log.Printf("Emitting low stock event: %+v", event)
 	tracer := telemetry.GetTracer()
-	ctx, span := tracer.Start(ctx, "add stock")
+	_, span := tracer.Start(ctx, "emit low stock event")
 	defer span.End()
-
-	if rs.HasError() {
-		return nil
-	}
-
-	params := db.AddInventoryParams{
-		ProductSku: string(req.ProductSKU),
-		StockLevel: int32(req.Quantity),
-	}
-	inventory, err := rs.queries.AddInventory(ctx, params)
+	slog.InfoContext(ctx, "Emitting low stock event", "event", event)
+	eventJSON, err := json.Marshal(event)
 	if err != nil {
-		rs.AddCallerError(ctx, err)
-		return nil
+		span.SetStatus(codes.Error, err.Error())
+		slog.ErrorContext(ctx, "Failed to marshal low stock event", "error", err)
+		return err
 	}
-	return &inventory
+	rs.nc.Publish(event.Subject(), []byte(eventJSON))
+	return nil
 }
 
-func (rs *requestScope) MakeStockAddResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockAddResponse {
-	tracer := telemetry.GetTracer()
-	_, span := tracer.Start(ctx, "build stock-add response")
-	defer span.End()
-
-	resp := schemas.StockAddResponse{}
-	if rs.HasError() {
-		resp.OK = false
-		resp.Error = utility.Ptr(rs.GetError().Error())
-	} else {
-		resp.OK = true
-		resp.ProductSKU = utility.Ptr(inventory.ProductSku)
-		resp.Quantity = utility.Ptr(int(inventory.StockLevel))
-	}
-	return &resp
-}
-
-// GetStock retrieves the stock information for a product.
-func (rs *requestScope) GetStock(ctx context.Context, req schemas.StockGetRequest) *db.Inventory {
-	tracer := telemetry.GetTracer()
-	ctx, span := tracer.Start(ctx, "get stock")
-	defer span.End()
+// EmitLowStockEvent checks if the updated inventory is below the low stock threshold
+func (rs *requestScope) EmitLowStockEvent(ctx context.Context, updatedInventory *db.Inventory) {
 
 	if rs.HasError() {
-		return nil
+		return
 	}
-
-	inventory, err := rs.queries.GetInventory(ctx, req.ProductSKU)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			slog.InfoContext(ctx, "no inventory found for product", "product_sku", req.ProductSKU)
-			return &db.Inventory{ProductSku: req.ProductSKU, StockLevel: 0}
+	// If stock was successfully removed and is now low, emit a LowStockEvent
+	if updatedInventory.StockLevel < LowStockThreshold {
+		event := schemas.LowStockEvent{
+			ProductSKU: updatedInventory.ProductSku,
+			StockLevel: int(updatedInventory.StockLevel),
 		}
-		rs.AddSystemError(ctx, err)
-		return nil
-	}
-	return &inventory
-}
-
-func (rs *requestScope) MakeStockGetResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockGetResponse {
-	tracer := telemetry.GetTracer()
-	_, span := tracer.Start(ctx, "build stock-get response")
-	defer span.End()
-
-	resp := schemas.StockGetResponse{}
-	if rs.HasError() {
-		resp.OK = false
-		resp.Error = utility.Ptr(rs.GetError().Error())
-	} else {
-		resp.OK = true
-		resp.ProductSKU = utility.Ptr(inventory.ProductSku)
-		resp.Quantity = utility.Ptr(int(inventory.StockLevel))
-	}
-	return &resp
-}
-
-// RemoveStock adds stock to the inventory.
-func (rs *requestScope) RemoveStock(ctx context.Context, req schemas.StockRemoveRequest) *db.Inventory {
-	tracer := telemetry.GetTracer()
-	ctx, span := tracer.Start(ctx, "remove stock")
-	defer span.End()
-
-	if rs.HasError() {
-		return nil
-	}
-
-	params := db.RemoveInventoryParams{
-		ProductSku: req.ProductSKU,
-		StockLevel: int32(req.Quantity),
-	}
-	inventory, err := rs.queries.RemoveInventory(ctx, params)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			// Detect any CHECK violation
-			if pgErr.Code == pgerrcode.CheckViolation {
-				slog.InfoContext(ctx, "database constraint error", "code", pgErr.Code, "message", pgErr.Message, "constraint", pgErr.ConstraintName)
-				// Branch by constraint name
-				switch pgErr.ConstraintName {
-				case "inventory_stock_level_nonnegative":
-					rs.AddCallerError(ctx, fmt.Errorf("stock level cannot go below zero for %s", req.ProductSKU))
-				case "inventory_product_sku_format":
-					rs.AddCallerError(ctx, fmt.Errorf("invalid SKU format: %s", req.ProductSKU))
-				default:
-					rs.AddCallerError(ctx, fmt.Errorf("business rule violated: %s", pgErr.Message))
-				}
-				return nil
-			}
+		if err := rs.EmitEvent(ctx, event); err != nil {
+			rs.AddSystemError(ctx, err)
 		}
-		rs.AddSystemError(ctx, fmt.Errorf("database error: %s", err.Error()))
-		return nil
 	}
-	return &inventory
-}
-
-func (rs *requestScope) MakeStockRemoveResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockRemoveResponse {
-	tracer := telemetry.GetTracer()
-	_, span := tracer.Start(ctx, "build stock-remove response")
-	defer span.End()
-
-	resp := schemas.StockRemoveResponse{}
-	if rs.HasError() {
-		resp.OK = false
-		resp.Error = utility.Ptr(rs.GetError().Error())
-	} else {
-		resp.OK = true
-		resp.ProductSKU = utility.Ptr(inventory.ProductSku)
-		resp.Quantity = utility.Ptr(int(inventory.StockLevel))
-	}
-	return &resp
 }

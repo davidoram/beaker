@@ -5,7 +5,6 @@ import (
 	"log/slog"
 
 	"github.com/davidoram/beaker/internal/telemetry"
-	"github.com/davidoram/beaker/schemas"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
@@ -82,34 +81,4 @@ func traceHandler(handler func(ctx context.Context, req micro.Request)) micro.Ha
 		slog.InfoContext(ctx, "API Request "+req.Subject())
 		handler(ctx, req)
 	}
-}
-
-func (app *App) stockAddHandler(ctx context.Context, req micro.Request) {
-	rs := NewRequestScope(ctx, req, app.db)
-	defer rs.Close(ctx)
-	rs.ValidateJSON(ctx, app.compiler, req.Data(), schemas.StockAddRequestSchema)
-	stockReq := DecodeRequest[schemas.StockAddRequest](ctx, rs)
-	resp := rs.MakeStockAddResponse(ctx, rs.AddStock(ctx, stockReq))
-	rs.CommitOrRollback(ctx)
-	rs.RespondJSON(ctx, req, resp)
-}
-
-func (app *App) stockRemoveHandler(ctx context.Context, req micro.Request) {
-	rs := NewRequestScope(ctx, req, app.db)
-	defer rs.Close(ctx)
-	rs.ValidateJSON(ctx, app.compiler, req.Data(), schemas.StockRemoveRequestSchema)
-	stockReq := DecodeRequest[schemas.StockRemoveRequest](ctx, rs)
-	resp := rs.MakeStockRemoveResponse(ctx, rs.RemoveStock(ctx, stockReq))
-	rs.CommitOrRollback(ctx)
-	rs.RespondJSON(ctx, req, resp)
-}
-
-func (app *App) stockGetHandler(ctx context.Context, req micro.Request) {
-	rs := NewRequestScope(ctx, req, app.db)
-	defer rs.Close(ctx)
-	rs.ValidateJSON(ctx, app.compiler, req.Data(), schemas.StockGetRequestSchema)
-	stockReq := DecodeRequest[schemas.StockGetRequest](ctx, rs)
-	resp := rs.MakeStockGetResponse(ctx, rs.GetStock(ctx, stockReq))
-	rs.CommitOrRollback(ctx)
-	rs.RespondJSON(ctx, req, resp)
 }

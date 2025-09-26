@@ -15,7 +15,7 @@ flowchart TD
         N1["JetStream"]
     end
     subgraph "Codespace"
-        C["Inventory service"]
+        C["Inventory micro-service"]
         D["Postgres database"]
     end
     subgraph "New Relic"
@@ -62,6 +62,7 @@ We are building a basic **Inventory API** that tracks the quantity of products u
 - The `quantity` is subtracted from the current stock.
 - ❌ Rejects if the result would reduce inventory below 0.
 - Returns the new stock level
+- If stock level falls below 10, then publish a `low-stock` message
 
 ### `stock-get`
 
@@ -75,7 +76,7 @@ We are building a basic **Inventory API** that tracks the quantity of products u
 - The API must be accessible via:
   - HTTP
   - NATS
-- All requests and responses use [JSON](https://www.json.org/json-en.html).
+- All requests, responses and events use [JSON](https://www.json.org/json-en.html).
   - Use [JSON Schema](https://json-schema.org/) to validate requests & responses
 - Define our API using the [OpenAPI](https://www.openapis.org/) standard.
 - Implement tests to verify that our code is working correctly.

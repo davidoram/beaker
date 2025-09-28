@@ -20,9 +20,9 @@ Remember "Iron sharpens iron, and one man sharpens another.”. Hit the subscrib
 
 # Episode 2
 
-Hi and welcome to my series on "Production grade system development". My name is Dave Oram and I'll be your gude as we look at episode 2 covering our "high level architectural goals".
+Hi and welcome to my series on "Production grade system development". My name is Dave Oram and I'll be your gude as we todays espisode which covers our "high level architectural goals".
 
-If you want to learn more about this video series, I encourage you take a look at that, its only a few minutes long.
+If you want to learn more about this video series, I encourage you take a look at the previous video which provides a brief introduction to all teh things that we will be covering.
 
 OK, today we will be covering off the high level architecture. If you want to follow along point your browser at https://github.com/davidoram/beaker, or just watch as we walk through the our high level arhcitecture.
 
@@ -129,3 +129,138 @@ Lets look at the other tools, systems and standards.
 This briongs us to the end of our video on our "High Level Architecture", I look forward to seeing you in the next video where we cover off the 'Development environment'.
 
 Remember "Iron sharpens iron, and one man sharpens another.”. Hit the subscribe button if you wnat to be notified when the next video is out. See you next time.
+
+
+# Episode 3
+
+Hi and welcome to my series on "Production grade system development". My name is Dave Oram and I'll be your gude as we todays espisode which covers our "development environment".
+
+If you are new to this video series video series, I encourage you take go back and listen to previous videos as they cover some context to what we are covering today.
+
+OK, today we will be covering off the "development environment". If you want to follow along point your browser at https://github.com/davidoram/beaker, otherwise you can just watch me cover all the steps.
+
+Starting at the README.md file which is displayed when you navigate to the github project. Then click on the "Development environment" link.
+
+What is a developoment enviroment?  Is where your developers, testers, and infrastructure engineers write, test and debug code.
+
+A good development environment contains all the tools, and resources that you need to build, run, debug and test the application safely without affecting anyone else.
+
+Ideally that means that each person can work concurrently on a separate feature or bug fix without impacting others.   Isolation of development environments helps person work at their own individual speed without getting blocked by someone else.  I've worked in many places in the past where there was always some part of the system where developers or testerd bumped into each other. Often this happens at the data layer, for example multiple developers / testers work against a shared database.  This slows down development because of issues like:
+
+- Each tester must take care not to overwrite or change someone elses test data.
+- Developers struggle to co-ordinate database schema changes when they impact others.
+- Performance testing becomes impacted by other peoples workloads so accurate measurements become harder to obtain.
+
+All this leads to increased friction and decreased productivity, so our goal is to create  isolated development environments.
+
+It takes a lot of effort to create a development environment. Consider what might happen when a new person is joining your team and they needs to get their development environmnet setup.
+
+This might involve:
+- Operating system updates
+- Containerization software installs eg: Docker, Podman or Kubernetes
+- Code editors or Integrated Development environments, eg: VS Code, or Vim
+- Debuggers
+- Source code control systems eg: git
+- Compilers: eg: C#, python, or go
+- Databases eg: Postgres, or MySql with associated client tools
+- Specialized tools used inside your development flow, maybe to generate code, perform liniting, or produce documentation.
+- SaaS credentials, eg: to access your GitHub acount, JIRA system for ticketing, and an cloud provider like AWS or Azure, etc.
+
+Once you have done that then you are ready you might be just about ready to checkout the source code for your application and start working.
+
+The problem with all this setup is that you end up with these problems:
+
+- Complex Setup: New team members face a long, error-prone process to install and configure all required tools, dependencies, and credentials.
+- Maintenance Burden: Keeping environments up-to-date (e.g., upgrading Postgres) is difficult and often inconsistent across the team.
+- Troubleshooting Difficulties: Diagnosing and resolving environment-specific issues is hard, especially when problems are unique to one developer’s setup.
+- Lack of Isolation: Sharing environments or resources (like databases) can lead to conflicts, data corruption, and reduced productivity.
+- Experimentation Risk: Trying new versions of tools or languages can disrupt existing setups, making it hard to safely experiment without breaking things.
+
+
+In short, Setting up and maintaining consistent, reliable, and isolated development environments is challenging, leading to wasted time, hard-to-diagnose issues, and friction for both onboarding and day-to-day work.
+
+So this is why many development teams (myself included) have moved to online "Cloud Based development environments".
+
+The idea behind this is that the team builds a standardised development environment typically using containerization technoloy, and then when a developer needs an environment they spin one up, use it for the duration of a piece of work, and then discard it once done.
+
+Each cloud based development environment instance runs in the cloud, but looks ans acts just like a normal development environment that you used to run on your laptop.
+
+There are many vendors that offer this service including
+- Github codespaces https://github.com/features/codespaces
+- Google Cloud Workstations
+as well as open source soultions like coder https://coder.com
+
+I've used a couple of these but I'm going to focus on GitHub codespaces because its the environment I used in my day job, and its the one I'm most familiar with.
+
+If you scroll down the page you can see a diagram showing the GitHub codespace environment that we will be running.
+
+We will be running either vscode or a modern browser on our desktop. Chrome or Safari should work fine.
+
+When we start the codespace, a virtual machine is started somewhere in Githubs infrastructure, and on that machine it has the following:
+- First of all it has git, and all of our source code of the beaker project checked out.
+- It has a bunch of tools installed like go compilers, and command line tools that we need to build, run and test the system
+- It has a full docker environment, and inside that docker environment we run Postgres. This is going to hold our test and production databases.
+
+You will notice on the left of the diagram you see that our codespace connects to some other services on the internet:
+- Synadia Cloid - for our NATS service
+- New Relic - for our Open Telementry data
+- Github obviously for recording our source code changes.
+- Not shown on the diagram, but codespaces has automatic port forwarding so for example you can run a website on your codespace and view it in your local browser. 
+
+
+So what are the advantages of our coder environment:
+- Your developer only needs a browser and an internet connection to get up and running. This makes onboarding a one click operation.
+- IT managers might issue Macbook Airs ($1,800) vs MacBook Pros ($2,819). A saving of ~ 36%
+- Each developers environments is completely consistent on startup - because we script it
+- Development environment setup is scripted so you can experiment and make changes with the knowledge you can back them out if they don't work.  You can not only change the software, but you can change the virtual hardware, increasing the number of CPUs or memory. 
+- Enterprises can control access and costs
+- Developers can run multiple independent codespaces concurrently. They autoamtically 'pause' and shutdown so you just pay for what you use.
+
+But there are some disadvantages.
+- Will developers accept a standardised set of tools. This is especially relenant to the IDE, so codespaces works best on VSCode and has beta support for JetBrains IDE, but what if your devs use VIM?
+- It costs money. Personal accounts get a quota of free usage and its very afforable afterwards. For example I've been using codespaces for this project and my bill last month was 0.49 cents! Enterprise plans of course cost real money so that needs to be factored into the equasion.
+
+
+I've been using codespaces at my day job for over 9 months now and for me it works extremely well. You'll need to make your own judgements about how it works for you.
+
+OK, lets dive into a beaker projects codespace settings and examine  step by step how its put togther.
+
+Click on the link to open the `dev-container.json` file. If you have checked out the project already it lives in thge `.devcontainer` directory in the root of the project.
+
+Ok we start off with the `name` of our project which is informational only, so I called it 'Beaker project dev container'
+
+Next the `workspaceFolder` shows where all the application project files will live.
+
+The `Features` section pulls in pre-packaged tools.  There are lots of them to choose from and I have added some links into the documentation.  This is the simplest way to start adding tools into our development environment. Ive added the `go` development environment and something called `docker-in-docker`.
+The `go` feature adds the go programming language tools. `docker-in-docker` runs the docker daemon process inside docker, and allows our codespace environment to build and run docker containers.
+
+The next section is `forwardPorts`. A forwarded port moves network traffic from one computer to another. In this context we are telling the codespace to forward network traffic from the codespace virtual machine to the developers laptop. Port 5432 is used to query the Postgres relational db.  So this means I can run queries from my laptop they will be re-directed to the codesopace, and fowarded to the Postgres server that running there and the results will be delivered back to my laptop.  But why is this useful?  We do want all our tools to be installed on the codespace, but I haven't found a postgres query tool that I like, so I want to run the Postico tool from my mac. I'll demonstrate this running in a later episode.
+
+OK the next configuration value is `customizations`, and in there we have added some `vscode` specific `extenstions`.  VSCode extensions customise the VSCode editor and by adding them here those extensions will be available in ever codespace environment.  I've added the official `go` extension for VSCode which gives you syntax highlighting, code navigation, testing and debugging support. Its created by the go team and its really great.  The other extension is more of an experiment for me and adds support for editing "mermaid" diagrams inside markdown.
+
+This is a good time to discuss documentation formats. I like markdown for documentation tasks because  it’s lightweight, easy to read in plain text, and automatically rendered with formatting on GitHub. If you look at the 'raw' versions of the markdown files you will notice that the diagrams are defined as text inside the markdown files.  These diagrams are defined textually using the mermaid language, which harks back to a point we talked about in an earlier video where we prefer to use textual formats for data, well these diagrams are just another kind of data. The beauty of this is that Github renders mermaid diagrams for you when viewing in the broiwser so its a super simple way that allows you to define diagrams in text, and also leverage Githubs ability to render them for you automatically. Also when someone edits a diagram you can see the differences in the textual representation.  
+
+Right we are getting towards the end of this file.  We have two configurations entitled `onCreateCommand` and `postCreateCommand`, each of which refers to a separate shell script.
+
+These scripts run at different times in the dev containers lifecycle:
+- onCreateCommand runs **only once**, right after the container is **created for the first time**. It’s typically used for setup tasks that you don’t want to repeat, like installing dependencies, or downloading tools.
+- postCreateCommand runs after **every container creation or rebuild**, once the container is up and running. 
+
+In short: onCreateCommand = one-time setup; postCreateCommand = always after create/rebuild.
+
+Lets take a look at what they run.
+
+Open up the `on_create_command.sh`
+The first line tells us its a bash script and it has some documentation at the top then it runs `make`
+
+Which brings us to `make`, which is a Unix build automation utility that runs commands defined in a `Makefile` typically to compile applications or run repetative commands.
+
+I've used make a Makefiles for many years, and the choice to use make os largely personal.  There are probably better tools out there, but at this stage I'm using what I know.  If you want to know more about make go to https://www.gnu.org/software/make/.  OK, so our command is `make setup` which means run the targer `setup` inside a `Makefile`.  Open up the Makefile and you will see some preamble at the top of the file, scroll down until you fnd the `setup:...` target.  When the command runs its going to find the target specified, run any dependencies, and then run the commands specified under the target. We have two targets that install tools via apt get and then install go tools.  Apt-get tools installed are the postgresql-client, git and jq. You can probably guess what postgresql-client is, it provides cli access to postgres databases, git allows us to run git commands for SCCS, and jq is a JSON query tool.  JSON is our data language format so we will use jq in a later video.  The go tool install command is a feature of go, which allows you to specify github projects as tools that you want to be installed, and when you run this command it will download those tools, compile them and install them in the codespace so they will be ready to run.  go tools come from the `tools` section in the `go.mod` file. Lets briefly go through each tool and what they do for us.
+
+... discuss each tool ...
+
+Ok, so at the end of the setup we have all the tools we need installed.
+
+Remember all the tool setup happens once, as part of the 'onCreateCommand'. Now lets look at what happens in the 'postCreateCommand'.
+ 
+

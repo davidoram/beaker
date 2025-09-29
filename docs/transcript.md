@@ -263,4 +263,34 @@ Ok, so at the end of the setup we have all the tools we need installed.
 
 Remember all the tool setup happens once, as part of the 'onCreateCommand'. Now lets look at what happens in the 'postCreateCommand'.
  
+Open the `post_create_command.sh` file.
 
+The first non comment line calls set -e which tells teh script to exit immediately if any of the commands inside it return a non-zero status.
+
+This may not be something you have encounytered before if you are new to a Unix based system. After running a command in unix, it will set a return code, which is an integer number.  The convention is that if the return value is zero, that means the command worked ok. Any other value indicates an error.
+
+OK we have an if statement that checks for an environment variable called $GITHUB_ACTIONS, environment varaibles are dynamic values stored in the shell enviromnet and are used to communicate values across the system. The GITHUB_ACTIONS environment variable is set when we are employ the github infrastructure to automatically run our tests and we will cover it more in a later video.  
+
+The -z option will be true if the GITHUB_ACTIONS envar is empty.  When the codespace starts up it will be empty so we will run the commands inside the if block. git pull origin will ensure that our codespace has all the latest code changes pulled down to the codespace environment.
+
+OKm next we have a loop that iterates over any environment variable that is prefixed wity NATS_CREDS_. For each of those variables we base64 decode the value in it and save it to a file in our HOME folder. Base64 encoding and decoding is a standard way of sharing values as strings. The advantage of base64 encoding is that you can share any binary value, and it will be represented as an ASCII strings, which makes it perfrect for sharing in environment variables.  These values contain the secret credentials that we will use to connect to Synadia Cloud NATS.  You might ask yourself where those values come from.
+
+Well in a later video we will sign up to Synadia Cloud, and create some credentials.  Then we will add them as codespace user secrets https://github.com/settings/codespaces.  Its super important never to commit credentials like API keys into our github repository's source files.  Luckily GitHub provide the codespace user secrets mechanism which allows us to save them in a safe place where no-one else can get them, and then have them automatically injected into our codespace at runtime.  So if users Jill, and Bob each create a codespace from the same github repo, they set up their own codespace user secrets and get their own values.
+
+You will see inside the loop after the values are saved to a file, we call the `nats context add ...` comand. This registers the NATS credentils with the nats cli tool, so we can use them easily by 'selecting the context' later.
+
+Before we start looking at the next section I need to talk about docker. What is docker?  Its an implementation of the Open Container Initiative standards, and it allows you to package up a full application including the libraries, code and other dependencies into a portable container format that can be run consistently across different environments like PCs and Macs, or server machines. Docker implements the OCI standard, but there are other implementations like PodMan and Kubernetes.  Our whole codespace environmnet is running inside an OCI runtime on Githubs infrastructure. We will be using Docker to run the Postgres database.  OK back to the startup sequence. 
+
+OK, next we print a message waiting for the docker socket to be ready and another loop, this time an until loop that runs `test -S  /var/run/docker.sock`. This is checking that that file exists and that it is a Unix domain socket. A unix domain socket is a special kind of file that lets apps on the same computer talk to each other directly without using the network.
+
+Next it does another check to see if the docker daemon is truly ready to accept commands by calling `docker info` and also `docker ps`. These commands are harmless but they ensure that the docker subsystem is ready to accept commands.
+
+Lastly I wait 2 seconds.  This might seem a lot of checks to ensure that docker is ready.  To be honest its what works for me. There is probably a better more reliable or efficient way of waiting until docker is ready. Its a situation where I decided that teh steps in the workflow are very reliable, and my time was better spent on more important tasks.  That's OK if you find yourself doing something which doesn't feel like the most elegant or perfect solution. Don't beat yourself up about it because you can allways come back and improve things later.
+
+Right we are now confident that docker is ready to accespt commands, so we run the `make restart-docker-compose`. Lets look at that target in the Makefile.
+
+OK, the restart-docker-compose target, is dependent on two other targets docker-compose-down and docker-compose-up which it runs in that order. 
+
+docker-compose-down is the first time we really ask docker to do something.  The approach we take her is to discard any old environemnt we were running in docker, before we start a new one.  This is great for development and test environments where you don't have data that you want to retain.  The `docker-compose -f .devcontainer/docker-compose.yml down  --remove-orphans || true;` command tells docker to use the `.devcontainer/docker-compose.yml` file and run the `down` command to stop all the containers defined in that file. The `remove-orphans` flag tells docker to kill any unconnected containers. We add the `|| true` on the end so the cleanup will allways run without error.  This is important because the Makefile will stop if any command returns an error. Ok so after this command runs lets just take it for a fact our docker environment isn't running any containers.  
+
+Next it runs `docker-compose-up`

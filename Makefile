@@ -3,11 +3,11 @@ DB_ENV?=development
 
 .PHONY: docker-compose-down
 docker-compose-down:
-	docker-compose -f .devcontainer/docker-compose.yml down  --remove-orphans || true; \
+	docker-compose -f .devcontainer/docker-compose.yml down  --remove-orphans || true; 
 
 .PHONY: docker-compose-up
 docker-compose-up:
-	NEW_RELIC_API_KEY=$${NEW_RELIC_API_KEY:-dummy-key} docker-compose -f .devcontainer/docker-compose.yml up -d \
+	NEW_RELIC_API_KEY=$${NEW_RELIC_API_KEY:-dummy-key} docker-compose -f .devcontainer/docker-compose.yml up -d 
 
 .PHONY: restart-docker-compose
 restart-docker-compose: docker-compose-down docker-compose-up

@@ -52,9 +52,11 @@ until docker info >/dev/null 2>&1 && docker ps >/dev/null 2>&1; do
     sleep 2
 done
 
-sleep 2  # Additional wait to ensure everything is stable
+echo "Waiting for system to stabilize..."
+sleep 10  
 
-echo "Docker daemon is ready!"
+# Show Docker state
+docker ps
 
 make restart-docker-compose
 echo "post_create_command.sh completed successfully."

@@ -86,7 +86,7 @@ Lets examine each section in detail.
 
   The `features` section is where we pull in modular, pre-packaged configurations to install and configure common development tools, languages, or utilities. They're designed to be composable, so you can mix and match them to create the exact development environment you need. In our case we install the [`go`](https://go.dev) programming language, and [`docker`](https://www.docker.com) which allows to run Docker containers from inside our codespace.
 
-The [official](https://containers.dev/collections.html) websites lists many more features that cover tools for many programming tasks.
+The [container.dev](https://containers.dev/collections.html), and [devcontainers](https://github.com/devcontainers/features/tree/main/src) websites lists many features that cover tools for common programming tasks.
 
 ## `forwardPorts`
 

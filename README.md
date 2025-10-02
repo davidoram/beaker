@@ -1,6 +1,6 @@
 # Overview
 
-Beaker is a demonstration project that shows how to build a production-ready microservice architecture using [NATS](https://nats.io/). It includes structured request handling, streaming support, service discovery, health checks, and observability features, giving teams a practical foundation for building scalable systems.
+Beaker is a demonstration project that shows how to build a production-ready microservice API. It includes structured request handling, streaming support, service discovery, health checks, and observability features, giving teams a practical foundation for building scalable systems.
 
 # Project Goals
 

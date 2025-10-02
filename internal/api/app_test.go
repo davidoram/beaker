@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -88,6 +89,33 @@ func TestApp(t *testing.T) {
 
 		require.False(t, resp.OK)
 		assert.Equal(t, fmt.Sprintf("stock level cannot go below zero for %s", uniqueSku), *resp.Error)
+	})
+
+	t.Run("remove stock publishes low stock event", func(t *testing.T) {
+
+		uniqueSku := fmt.Sprintf("sku-%d", time.Now().UnixNano())
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+
+		// Write a subscriber to listen for the low stock event
+		sub, err := nc.Subscribe(schemas.LowStockEvent{}.Subject(), func(msg *nats.Msg) {
+			event := schemas.LowStockEvent{}
+			err := json.Unmarshal(msg.Data, &event)
+			require.NoError(t, err)
+			if event.ProductSKU == uniqueSku && event.StockLevel == 6 {
+				wg.Done()
+			}
+		})
+		require.NoError(t, err)
+		defer sub.Unsubscribe()
+
+		addStock(t, nc, uniqueSku, 11)
+		resp := removeStock(t, nc, uniqueSku, 5)
+
+		require.True(t, resp.OK)
+
+		wg.Wait()
 	})
 
 	t.Run("malformed remove request", func(t *testing.T) {

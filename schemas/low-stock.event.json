@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "http://github.com/davidoram/beaker/schemas/low-stock.event.json",
+  "title": "low-stock.event",
+  "type": "object",
+  "properties": {
+    "product-sku": {
+      "$ref": "http://github.com/davidoram/beaker/schemas/product-sku.json"
+    },
+    "stock-level": {
+      "type": "integer",
+      "description": "The current stock level of the product."
+    }
+  },
+  "required": ["product-sku", "stock-level"],
+  "additionalProperties": false
+}

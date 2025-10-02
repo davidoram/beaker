@@ -15,7 +15,7 @@ flowchart TD
         N1["JetStream"]
     end
     subgraph "Codespace"
-        C["Inventory service"]
+        C["Inventory micro-service"]
         D["Postgres database"]
     end
     subgraph "New Relic"
@@ -62,6 +62,7 @@ We are building a basic **Inventory API** that tracks the quantity of products u
 - The `quantity` is subtracted from the current stock.
 - ❌ Rejects if the result would reduce inventory below 0.
 - Returns the new stock level
+- If stock level falls below 10, then publish a `low-stock` message
 
 ### `stock-get`
 
@@ -75,9 +76,8 @@ We are building a basic **Inventory API** that tracks the quantity of products u
 - The API must be accessible via:
   - HTTP
   - NATS
-- All requests and responses use [JSON](https://www.json.org/json-en.html).
+- All requests, responses and events use [JSON](https://www.json.org/json-en.html).
   - Use [JSON Schema](https://json-schema.org/) to validate requests & responses
-- Define our API using the [OpenAPI](https://www.openapis.org/) standard.
 - Implement tests to verify that our code is working correctly.
 - Capture Telemetry using [Open Telemetry](https://opentelemetry.io) standards
 
@@ -90,10 +90,15 @@ This diagram shows some of the key stanadards that the system is using and depen
 graph TD
   %% Organizations
   subgraph CNCF["Cloud Native Computing Foundation (CNCF)"]
-    NATS[NATS Protocol]
-    JetStream[JetStream]
-    NATSService[NATS Microservices API]
+    NATS[NATS]
     OpenTelemetry[OpenTelemetry]
+  end
+
+  subgraph Synadia["Synadia"]
+    SynadiaCloud[Synadia Cloud]
+  end
+
+  subgraph NewRelicCo["New Relic"]
     NewRelic[NewRelic]
   end
 
@@ -128,8 +133,7 @@ graph TD
   JSONSchema --> OpenAPI
   OpenAPI -->|Uses| HTTP
 
-  NATS --> JetStream
-  NATS --> NATSService
+  SynadiaCloud --> |Implements|NATS
  
   Github -->|Implements|Git
   Devcontainers -->|Runs on|OCI

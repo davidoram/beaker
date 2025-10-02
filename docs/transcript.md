@@ -337,9 +337,11 @@ To delete a codespace, go back to the place where we created them. Click on the 
 
 Github kindly offers a free quota of 120hours/month to use codespaces which is pretty amazing because it means we can all have a play with this amazing technology.
 
-This brings us to the end of this video.  
+Lets summarise what we have learned.  
 
-We've learnt a lot about development environments that run inside codespaces, how to create them, the lifecycle they go through, and how to use pre-builds to speed things up.
-When we have a codespace ready to use we know how to start it and run it in our browser or local VSCode. We also know how to delete it when not used.
+We've learnt a lot about development environments that run inside codespaces. Most importantly we know **why** we use codespaces. They give our teams consistent reliable environments for working in. Team members use them for tasks, discard them and create new ones quickly. The tooling is consistent across the team.  On boarding new team members becomes a lot simpler because we can provide a reliable consistent development environment.   It doesn't come without a downsides because it forces you down a particular set of tooling - most notably using VSCode. This might turn some developers off particularly is they love using a particular toolset thats not available with something like codespaces. 
 
-Most importantly we know why we create codespaces. They give our teams consistent reliable environments for working in. Team members can start them use them then discard them and create a new one. On boarding new team members becomes a lot simpler with regards to tooling.   It doesn't come without a downside because it forces you down a particular set of tooling - most notably using VSCode. 
+We have learned how to create a new, we know the lifecycle they go through, and how to use pre-builds to speed things up.
+When know how to debug a startup issue, and how we can keep things clean an tidy by deleting codespaces when we have finished with them
+
+This brings us to the end of the video on 'development environments'   Thanks for listening to 'iron sharpens code'.  The next video will be covering 'Open Telemetry'  Hit subscribe if you want to be notified when the next video is available. Thanks for watching. 

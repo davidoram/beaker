@@ -1,6 +1,6 @@
 module github.com/davidoram/beaker
 
-go 1.24.2
+go 1.25.1
 
 tool (
 	github.com/equinix-labs/otel-cli

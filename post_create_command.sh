@@ -39,24 +39,4 @@ for var in $(env | grep '^NATS_CREDS_' | cut -d'=' -f1); do
     fi
 done
 
-
-echo "Waiting for the docker socket to be ready..."
-until test -S /var/run/docker.sock; do
-    echo "Waiting for Docker socket '/var/run/docker.sock' to exist..."
-    sleep 2
-done
-
-echo "Waiting for docker daemon to be ready..."
-until docker info >/dev/null 2>&1 && docker ps >/dev/null 2>&1; do
-    echo "Waiting for Docker daemon to be fully ready..."
-    sleep 2
-done
-
-echo "Waiting for system to stabilize..."
-sleep 10  
-
-# Show Docker state
-docker ps
-
-make restart-docker-compose
-echo "post_create_command.sh completed successfully."
+echo "post_create_command.sh completed successfully. Start a new terminal and run 'make bootstrap' to initialize the development environment."

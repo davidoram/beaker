@@ -18,3 +18,9 @@ Each episode covers one of the following topics
 - [Open Telemetry Setup](./docs/otel.md)
 - [Database Layer](./docs/db.md)
 - [API Layer](./docs/api.md)
+
+
+# Development environment setup
+
+- Start a codespace
+- After startup complete run `make bootstrap`

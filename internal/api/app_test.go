@@ -108,7 +108,7 @@ func TestApp(t *testing.T) {
 			}
 		})
 		require.NoError(t, err)
-		defer sub.Unsubscribe()
+		defer sub.Unsubscribe() // nolint:errcheck
 
 		addStock(t, nc, uniqueSku, 11)
 		resp := removeStock(t, nc, uniqueSku, 5)

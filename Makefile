@@ -1,6 +1,11 @@
 DB_URL=postgres://postgres:password@localhost?sslmode=disable
 DB_ENV?=development
 
+.PHONY: bootstrap
+bootstrap: restart-docker-compose
+	$(MAKE) recreate-db DB_ENV=development
+	$(MAKE) recreate-db DB_ENV=test
+
 .PHONY: docker-compose-down
 docker-compose-down:
 	docker-compose -f .devcontainer/docker-compose.yml down  --remove-orphans || true; 
@@ -86,7 +91,7 @@ lint: go-lint schema-lint
 
 .PHONY: go-lint
 go-lint:
-	docker run --rm -v $(PWD):/app -w /app golangci/golangci-lint:v2.4.0 golangci-lint run
+	docker run --rm -v $(PWD):/app -w /app golangci/golangci-lint:v2.5.0 golangci-lint run
 
 .PHONY: schema-lint
 schema-lint:

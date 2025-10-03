@@ -250,8 +250,7 @@ func (rs *requestScope) EmitEvent(ctx context.Context, event schemas.LowStockEve
 		slog.ErrorContext(ctx, "Failed to marshal low stock event", "error", err)
 		return err
 	}
-	rs.nc.Publish(event.Subject(), []byte(eventJSON))
-	return nil
+	return rs.nc.Publish(event.Subject(), []byte(eventJSON))
 }
 
 // EmitLowStockEvent checks if the updated inventory is below the low stock threshold

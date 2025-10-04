@@ -279,36 +279,30 @@ Well in a later video we will sign up to Synadia Cloud, and create some credenti
 
 You will see inside the loop after the values are saved to a file, we call the `nats context add ...` comand. This registers the NATS credentils with the nats cli tool, so we can use them easily by 'selecting the context' later.
 
-Before we start looking at the next section I need to talk about docker. What is docker?  Its an implementation of the Open Container Initiative standards, and it allows you to package up a full application including the libraries, code and other dependencies into a portable container format that can be run consistently across different environments like PCs and Macs, or server machines. Docker implements the OCI standard, but there are other implementations like PodMan and Kubernetes.  Our whole codespace environmnet is running inside an OCI runtime on Githubs infrastructure. We will be using Docker to run the Postgres database.  Docker is a key component in modern software architecture because its simplified the way that we package software, for use on a wide multitide of systems. OK back to the startup sequence. 
+That marks the end of the startup sequence.
 
-OK, next we print a message waiting for the docker socket to be ready and another loop, this time an until loop that runs `test -S  /var/run/docker.sock`. This is checking that that file exists and that it is a Unix domain socket. A unix domain socket is a special kind of file that lets apps on the same computer talk to each other directly without using the network. Unix domain sockets allow network style programming, with fewer overheads if the networked apps are running on the same host machine. 
+There is just one command left to run, which is `make bootstrap` which will run up all the services that need to be running for us to do our development.  In our case we need the postgres database to be running, and to have a two databases created, one for development called `beaker_development` and the other for unit tests called `beaker_test`.
 
-Next it does another check to see if the docker daemon is truly ready to accept commands by calling `docker info` and also `docker ps`. These commands are harmless but they are extra checks ensure that the docker subsystem has fully booted up & is ready to accept commands.
+Before we delve into the `bootstrap` target. I need to talk about docker because its the first time we have used it. What is docker?  Its an implementation of the Open Container Initiative standards, and it allows you to package up a full application including the libraries, code and other dependencies into a portable container format that can be run consistently across different environments like PCs, Macs, or server machines. Docker implements the OCI standard, but there are other implementations like PodMan and Kubernetes.  Our whole codespace environmnet is running inside an OCI runtime on Githubs infrastructure. We will be using Docker to run the Postgres database.  Docker is a key component in modern software architecture because its simplifies the way that we package software, for use on a wide multitide of systems. `docker-compose` is a tool that comes bundled as part of docker, it lets you define and run multi-container applications using a simple YAML file, so you can start everything (like a database, and email server) with a single command instead of running each container manually.  In our case we are only using it to run a database so it might be overkill. OK back to the `bootstrap` process
 
-Lastly I wait 2 seconds.  This might seem a lot of checks to ensure that docker is ready.  To be honest its what works for me. There is probably a better more reliable or efficient way of waiting until docker is ready. Its a situation where I decided that teh steps in the workflow are very reliable, and my time was better spent on more important tasks.  That's OK if you find yourself doing something which doesn't feel like the most elegant or perfect solution. Don't beat yourself up about it because you can allways come back and improve things later.
+`bootstrap` depends on `restart-docker-compose`. The `restart-docker-compose` target, is dependent on two other targets `docker-compose-down` and `docker-compose-up` which it runs in that order. 
 
-Right we are now confident that docker is ready to accespt commands, so we run the `make restart-docker-compose`. Before we dive into that lets have a little side-bar on docker-compose. Docker Compose is a tool that lets you define and run multi-container applications using a simple YAML file, so you can start everything (like a database, and email server) with a single command instead of running each container manually.  In our case we are only using it to run a database so it might be overkill.  OK, lets go back to the `restart-docker-compose` target in the Makefile.
+The `docker-compose-down` target will destroys and deletes our postgres server environment and all the data in its databases.  This approach of deleteing everything and starting from scratch is great for development and test environments where you don't have data that you need to retain. It forces you to understand your data requirements for each environment, and turn them into repeatable scripts. Once you have a scriptable environment, then its super easy to share with someone else, and have them configure or test their system exactly the same way as yours.   The `docker-compose -f .devcontainer/docker-compose.yml down  --remove-orphans || true;` command tells docker to use the `.devcontainer/docker-compose.yml` file and run the `down` command to stop all the containers defined in that file. The `remove-orphans` flag tells docker to kill any unconnected containers. We add the `|| true` on the end so the cleanup will allways run without error.  This is important because make will stop if any command returns an error, and at this stage we don't know the state of the docker environment so we just want to delete everything and take us back to an empty state. Ok so after this command runs lets just take it for a fact our docker environment isn't running any containers.  
 
-OK, the `restart-docker-compose` target, is dependent on two other targets `docker-compose-down` and `docker-compose-up` which it runs in that order. 
+Before we look at `docker-compose-up`, its time to examine the `./devcontainer/docker-compose.yaml` configuration file to see how we have scripted the definition of our postgres server. A YAML file is a human-friendly text file format used to represent structured data with indentation, often for configuration. This file lists the services we want to run inside docker.  We only have one service called 'db'. Inside that we have the 'image' which is the Docker image that we want run, the format is name:version, so you can see that we are running postgres version 18. The restart step tells docker to automatically restart the app if it crashes, but not if its explicitly stopped. The environment section contains a list of key/value pairs that represent environment variables passes on to the postgres image when it runs, and the port section is where we expose access to the application through TCP sockets.  TCP sockets work across machines over a network, using IP addresses and ports (like 127.0.0.1:5432), and are a bit slower than Unix domain sockets, but allow remote communication.  So when docker runs this image, its treated like a remote machine and any application running on the dev container will connect to it using a a TCP socket.  Each docker app has its own unique configuration settings, for example the Postgres app is documented https://hub.docker.com/_/postgres, which is a good place to look at the explaination for how its configured. This is where you would look to see what those environment variables mean.  I think they are pretty self explanatory, so if you want to know more I'll leave that as an exercise you can do online.
 
-docker-compose-down is the first time we really ask docker to do something.  The approach we take her is to discard any old environemnt we were running in docker, before we start a new one.  This approach is great for development and test environments where you don't have data that you want to retain. Deleteing and rebuilding parts of your system from scratch makes life easier because it forces you to understand your requirements for that environment, and to encode those requirements as dependecies in some form of script. Once you have a scriptable environment, then its super easy to share with someone else, and have them get the same response.   The `docker-compose -f .devcontainer/docker-compose.yml down  --remove-orphans || true;` command tells docker to use the `.devcontainer/docker-compose.yml` file and run the `down` command to stop all the containers defined in that file. The `remove-orphans` flag tells docker to kill any unconnected containers. We add the `|| true` on the end so the cleanup will allways run without error.  This is important because the Makefile will stop if any command returns an error. Ok so after this command runs lets just take it for a fact our docker environment isn't running any containers.  
+OK, back to the Makefile, after running `docker-compose-down` there are no docker containers running, so next it runs `docker-compose-up`. This creates all the containers specificed in our yaml file. the `-d` option means detach which tells the docker-compose command to run the containers in the background and return to us.  
 
-Lets look at the `./devcontainer/docker-compose.yaml` configuration file to see how we have scripted teh definition of our postgres server. A YAML file is a human-friendly text file format used to represent structured data with indentation, often for configuration. The file lists the services we wnat to run inside docker.  We only have one 'db'. Inside that we have the 'image' which is the Docker image that we want run, the format is name:version, so you can see that we are running postgres version 17. The restart step tells docker to automatically restart the app if it crashes, but not if its explicitly stopped. The environment section contains a list of key/value pairs that represent environment variables passes on to the postgres image when it runs, and the port section is where we expose access to the application through TCP sockets.  TCP sockets: work across machines over a network, use IP addresses and ports (like 127.0.0.1:5432), and are a bit slower than Unix domain sockets, but allow remote communication.  So when docker runs this image, its treated like a remote machine and any application running on the dev container will connect to it using a a TCP socket.  Each docker app has its own unique configuration settings, for example the Postgres app is documented https://hub.docker.com/_/postgres, which is a good place to look at the explaination for how its configured. This is where you would look to see what those environment variables mean.  I think they are pretty self explanatory, so if you want to know more I'll leave that as an exercise you can do online.
+Going back up to the `bootstrap` layer, now that we have recreated our postgres environment we run a couple of strange looking commands `$(MAKE) recreate-db DB_ENV=development` and `$(MAKE) recreate-db DB_ENV=test`.  All this means is make calls itself with a target `recreate-db` and an environment variable DB_ENV set.  So lets look at the `recreate-db` target. If you scroll down to find it in the Makefile it is dependent on 3 targets which it will run in order, `drop-db`, `create-db` and `migrate-db`, and then after they have run it uses the `echo` command to print a message to the terminal.  `drop-db` is dependent on `postgres-ready` and `terminate-conns`, after they have run it uses the psql command to `DROP DATABASE` using the DB_ENV environment variable to drop either `beaker_development` or `beaker_test`, but we are jumping the gun because we need to look at the dependecies first. `postgres-ready` uses the `pg_isready` command to wait for postgres to start-up, or wait 5 seconds if its not ready which will give it some time to become ready, then the `wait-for-it` tool waits for 30s for postgres to accept connections on port `5432`. This gives postgres some time to boosttrap and start its networking subsystem. At the end of this we know Postgres is up and ready to accept work in the form of SQL commands. `terminate-conns` uses the psql command line tool to run a SQL script that terminates any active connections to our beaker_test or beaker_development database. Why do we need to do that? Its because postgres prevents us from dropping a database that someone is connected to, so we force the connections to drop via this SQL. That makes life more convenient to the developer because otherwise you will have to find any processes that are connected to the database and shut them down manually.  Backing up a bit, now that postgres the database server is running, and we have created an empty database beaker_{DB_ENV} then the `create-db` target runs which will issue the SQL `CREATE DATABASE ..` command. This command creates a new, clean UTF-8 encoded database named beaker_<environment> (like beaker_dev, beaker_test, etc.), owned by the postgres user, with standard U.S. English locale settings. We will discuss some of these settings a bit more in a future video, but suffice to say we have created a fresh database with no tables or data in it.
 
-OK, back to the Makefile, after running `docker-compose-down` there should be no docker containers running, and next it runs `docker-compose-up`. This creates all the containers specificed in our yaml file. the `-d` option means detach which tells the docker-compose command to run the containers in the background and return to us.  
+That rounds out the `make bootstrap` command, but you might be wondering why we don't just run that automatically as part of the `post_create` startup sequence of the codespace.  I wanted to do that, but honestly I had a lot of trouble making it work reliably.  The problems seemed to stem from being unable to be sure that the docker daemon was fully started up. After spending quite a lot of time on getting this going, I just opted for a workaround which means the developer has to run `make bootstrap` when they start or restart the codespace.
+
+This is something that happens often is real life development, you encounter a problem thats stopping you from achieving a bigger goal. Sometimes a manual workaround is fine if it helps us keep moving. We can always circle back later to tidy it up or automate once the pressure’s off.  The lesson here is that sometimes we can make a pragmatic call in the short term as long as we don't comprimise on the long term quality of what we are producing.  For me in this situation, my decision is that having an extra step for the developer to setup their environment is ok, because utlimately that wont comprimise the build of a production quality API server.
 
 
-Ok so its time to summarise what we know
+As our development environments become more complex, we need more tools and libraries installed, and we need more applications running in order to do development.  All this will slow down the creation of our codespace, which will impact our productivity.
 
-- We start a codespace on demand via teh github we interface, and we don't need any software running locally beyond a browser.
-- The codespace runs in the cloud, and projects its user interface through the browser or a local copy of VS Code
-- There are two distinct phases our codespace goes through:
-  - The 'on create' pahse runs exactly once. Thats our chance to install any tools we need
-  - The 'post create' phase runs each time the codespace starts up. Thats the place where we start up the applictions that we need running while we do our development. In our case we run postgres.
-
-As our development environments become more comples, we need more tools and libraries installed, and we need more applications running in order to do development.  All this will slow down the creation of our codespace, which will impact our productivity.
-
-But Github have a trick up their sleve that we can use called  prebuilt devcontainers.  A prebuilt devcontainer has the devcontainer image built in in advance to speed up container startup. Let me show you how thats done. Navigate to the github project, click on settings, the codespaces. You can see that I have a setup a prebuiult containere for us to use. If we click edit we can see how its set-up.  It runs only on the main branch and specifies the path to the devcontainer configuration to use. In the triggers section you can specify what will cause it to be triggered, and I've set it to be be when the devcontainer configuration changes.  In order situation it might be better to do it periodically, say at 6am ever moning, so that when you team starts work they know there is always a fresh devcontainer ready to run. The other settings down below allow you to configure where the image will be available. I've set mine to australia, only so let me know if you are outside the area and are unable to run it. The last setting is a useful one, where you can specify to notify someone if your prebuild fails. 
+But Github have a trick up their sleve that we can use called  prebuilt devcontainers.  A prebuilt devcontainer has the devcontainer image built in in advance to speed up container startup. Let me show you how thats done. Navigate to the github project, click on settings, the codespaces. You can see that I have a setup a prebuiult containere for us to use. If we click edit we can see how its set-up.  It runs only on the main branch and specifies the path to the devcontainer configuration to use. In the triggers section you can specify what will cause it to be triggered, and I've set it to be be when the devcontainer configuration changes.  In other situations, it might be better to do it periodically, say at 6am ever moning, so that when you team starts work they know there is always a fresh devcontainer ready to run. The other settings down below allow you to configure where the image will be available. I've set mine to australia, only so let me know if you are outside the area and are unable to run it. The last setting is a useful one, where you can specify to notify someone if your prebuild fails. 
 
 OK lets click back and view the output to see how much time the pre-build step takes. Click on the ' See output' button shows that the pre-build took 30 mins. OK thats a signicant amount of time.  Lets now run up a new devcontainer in the browser and see what it looks like:
 
@@ -327,21 +321,176 @@ Lets see what we have:
   - Lets check some of the 'go' tools, we will just do a couple.
     - `sqlc version` is installed
     - `which wait-for-it` is installed
-- How can we confirm that our docker compose command ran ok. Lets check by listing the running processes: `docker ps` shows postgres is running ok.
 
 If something went wrong, you might wonder how we debug it. Weill is you were watching closely, you may have noticed a message ' Cmd/Ctrl + Shift + P -> View Creation Log to see full logs'. Lets so that now and have a look at the startup sequence. Scroll right to the bottom of the page and scroll up to see the last few steps.
 
-Right so that brings to to the end part of our video.  If you have opened a codespacem then you can shut to down. To do that you close the window in the browser or in my case VSCode. The codespace is still running until you explicitly shut it down  or it shuts itself down after a period of inacivity.  The important thing to note is that if you have edited files inside teh codespacem, they are retained until the codespace is fully deleted. So its perfectly normal to edit files one day, and save them, then restart your codespace the following day and pick up where you left off.
+
+The last step is manual, we need to run docker-compose script & finish creating a clean environment, by running `make bootstrap`
+- Lets confiorm that ran OKby listing the running processes: `docker ps` shows postgres is running ok.
+
+Ok we have covered a lot, so its time to summarise what we know:
+
+- Codespaces runs in the cloud, and provides its user interface either through the browser or a local copy of VS Code. The minimum software requirements are a modern browser.
+- We start a codespace on demand via the github web interface.
+- There are two distinct phases our codespace goes through:
+  - The 'on create' pahse runs exactly once. Thats our chance to install any tools we need. 
+  - The 'post create' phase runs each time the codespace starts up. 
+
+
+Right so that brings to to the end part of our video.  If you have opened a codespace then you can shut to down. To do that you close the window in the browser or in my case VSCode. The codespace is still running until you explicitly shut it down  or it shuts itself down after a period of inacivity.  The important thing to note is that if you have edited files inside the codespacem, they are retained until the codespace is fully deleted. So its perfectly normal to edit files one day, and save them, then restart your codespace the following day and pick up where you left off.
 
 To delete a codespace, go back to the place where we created them. Click on the code button, then codespaces and the '...' button gives you the option to delete the codespace.
 
 Github kindly offers a free quota of 120hours/month to use codespaces which is pretty amazing because it means we can all have a play with this amazing technology.
 
-Lets summarise what we have learned.  
+Lets summarise why we run our development environment using codespaces.
+They give our teams consistent, reliable, stable environments for working in. Team members use them for tasks, discard them and create new ones quickly. The tooling is consistent across the team.  On-boarding new team members becomes a lot simpler because we can provide a reliable consistent development environment, by giving them access to Github and a browser.   The disadvantages is that it forces you down a particular set of tooling - most notably using VSCode. This might turn some developers off particularly is they love using a particular toolset thats not available with something like codespaces. 
 
-We've learnt a lot about development environments that run inside codespaces. Most importantly we know **why** we use codespaces. They give our teams consistent reliable environments for working in. Team members use them for tasks, discard them and create new ones quickly. The tooling is consistent across the team.  On boarding new team members becomes a lot simpler because we can provide a reliable consistent development environment.   It doesn't come without a downsides because it forces you down a particular set of tooling - most notably using VSCode. This might turn some developers off particularly is they love using a particular toolset thats not available with something like codespaces. 
+We have learned how to create a new codespace, we know the lifecycle they go through, and how to use pre-builds to speed things up. When can debug a startup issue, and how we can keep things clean an tidy by deleting codespaces when we have finished with them
 
-We have learned how to create a new, we know the lifecycle they go through, and how to use pre-builds to speed things up.
-When know how to debug a startup issue, and how we can keep things clean an tidy by deleting codespaces when we have finished with them
+This brings us to the end of the video on 'development environments'   Thanks for listening , and remember "Iron sharpens iron, and one man sharpens another.”. Hit the subscribe button if you wnat to be notified when the next video is out. The next video in the series we start talking about data.
 
-This brings us to the end of the video on 'development environments'   Thanks for listening to 'iron sharpens code'.  The next video will be covering 'Open Telemetry'  Hit subscribe if you want to be notified when the next video is available. Thanks for watching. 
+# Episode 4
+
+Hi and welcome to my series on "Production grade system development". My name is Dave Oram and I'll be your gude as we todays espisode which covers our "Data layer".
+
+If you are new to this video series video series, I encourage you take go back and listen to previous videos as they cover some context to what we are covering today.
+
+OK, today we will be covering off the "data lyer". If you want to follow along point your browser at https://github.com/davidoram/beaker, otherwise you can just watch me cover all the steps.
+
+Its worth taking a take a lot of time and care to understand what our data is and how it inter-related, because thats the foundation of any appliction. Data also lives a lot longer than the applications that sit on top of them. Today we are building our application layer in go, but 15 or 20 years from now, we might be using another language, and we may need to bring our data from an old system into a new one. The code is re-written but the data is often migrated.
+
+
+Data is at the core of any application. In our scenario, we are building a stock keeping API, so our data is in the form of Product SKU's and quantities.
+
+The process that I start with when modelling real world data is to map them onto standards and domains.
+
+I don't know much about Product SKUs so I searched online to see if there was a standard for represneting SKUs. I couldn't find one so I looked around and designed a data type that represented what I thought was reasonable, a string between 1 and 64 chars long, containing alphanumeric underscore and hyphens. My thinking here is that spaces are probably not significant, wo we want to eliminate them. Why because if I was to represent two different SKUs "a1" and "a1 " on screen it would be very hard to tell they are different.
+
+To take another example imagine if our system modelled telephone numbers we have standard E.164 - and its defined https://en.wikipedia.org/wiki/E.164. If I wanted to store a phone number I would follow this standard. Why?  Because I know that if the data from system needs tointeract with another system, its much more likely that they will talk together. Data interchange between systems is an important measure of the usefulness of a system, so adopting standards will help your system interact with other systems more easily which is added value.
+
+The other data attrinute we will be modelling is stock levels.  After consulting with the business experts for my system they let me know that there is no upper bound for inventory levels, but they can't ever fall below zero. We also don't sell fractions of a SKU, so stock levels are best modelled as integer values that are >= 0.
+
+Because we started by gaining a good understanding of our domain data, we can now use that information to map that data into our application.  
+
+Our lowest level of data management is Postgres so start with that. Why did I choose Postgres over some other tool.  The main reason is that I have many years experience with it, its safe reliable, and available everywhere. There are many other valid alternatives but Postgres is a good choice for me because I can explain the features that I'm using as we go through the code.  
+
+In a previous video we showed parts of the Makefile where we start a Postgres server using docker compose.  I choose the latest version at the time of writing which is 18. 
+
+If you open the Makefile and find the `create-db` target it shows how we create the database. Lets go through the options and what they mean.
+
+- WITH OWNER postgres: Makes the PostgreSQL role postgres the owner of the new database.
+-	ENCODING 'UTF8':	•	Ensures the database uses UTF-8 character encoding.
+- LC_COLLATE='en_US.UTF-8' LC_CTYPE='en_US.UTF-8': 	Defines locale settings for string sorting (collation) and character classification (ctype). This means:
+  - Sorting and comparisons are case-insensitive for ordering purposes in the sense that "A" and "a" are considered equal in sort order (they’ll group together).
+  - Equality checks are still case-sensitive in standard SQL. 'a' != 'A'
+- TEMPLATE template0. Creates the new database as a copy of template0, which is a “minimal” empty template database in Postgres.	This ensures no extra extensions or locale settings are inherited accidentally from template1.
+
+OK so we have a an empty database how do we create the tables, indexes and our data definitions inside teh database so its ready to be used. 
+
+We use a tool called `sql-migrate` to apply database migration files which are basically versioned changes to teh database.   So how does it work, we write migration in plain SQL files, then the sql-migrate tool applies them in the correct order.  It tracks which migrations have been run in a special database table. The end result is scripted database setup that we can maintain just like any other source file. `sql-migrate` runs against databases other than Postgres, and provides other tools to reverse  out migrations etc.
+
+OK, lets look at running the migration. We actually did it as part of the last video but we can do it again by running `make bootstrap` which will recreate the database, and run the migrations. When we run that `sql-migrate` reports that its `Applied 1 migration` Lets look at teh sql-migrate command the first option `up` means apply any migrations that haven't yet been applied. The `--config dbconfig.yml` option points to the configuration file for sql-migrate and the third option --env specifies an environment which in our case will be either `development` or `test`. Lets take a look at the config file. In there there are two sections, one for each environment and under that options that tell sql-migrate the `dialect` which dictates database specific behaviour, `datasource` which tells it how to connect to the db, `dir` for migration files, and `table` that contains the record of which migrations have run.
+
+Lets look at our `db-migrations` directory to see what files it executed.  There is only one `db-migrations/20250716085349-create-tables.sql`. The strange filename is an ordering mechanism thats used to order the files, and when you have more than one file sql-migrate will apply them in the same order that vs code shows the.  Open that file and you see some SQL commands and some comments.  First of all the `+migrate Up` and `+migrate Down` comments tell sql-migrate which block of SQL to run.  We are migrating `up` so lets focus on the top block.
+
+Our system has a single database table called `inventory` with two columns. The `product_sku` has type text which is the appropriate data type to hold strings, and we have made it not null, and the primary key. By making it not nullable we prevent any NULL values from being stored in that column, so we can only have strings, and by making it the primary key Postgres will automatially add a unique index onto that column, enabling super fast lookup when looking for an exact match. 
+
+Next the `stock_level` column is defined as an integer also not null.
+
+Now we have database constraints. A database constraint is a rule that the database enforces on a table or column to ensure data integrity — basically, it stops invalid or inconsistent data from being entered.
+
+Our inventory_stock_level_nonnegative ensures stock_level is never negative. If someone tries to insert `-5`, the DB will reject it.
+inventory_product_sku_format ensures product_sku only contains lowercase letters, numbers, hyphens, or underscores, and is 1–64 characters long. Prevents invalid SKUs like `ABC!@#` from being stored.
+
+Constraints like these are your first line of defense for keeping the data correct and predictable. With constraints, the database itself guarantees correctness no matter how the data gets inserted or updated, by the application or a migration script. The rules are defined in one place and are often very efficient because they are run inside the database server right next to the data itself.
+
+
+OK lets check the database is working OK.  I'm going to use a tool called Postico which is a third party app that can connect right from my mac into the Postgres database.  Thats allowed because in a previous video I showed how we configured the devcontainer to `forwardPorts` 5432 which makes that possible.
+
+Lets test the inserts - see 'test inserts'
+
+
+Lets load 100k rows into our database & check how query performance works
+
+```sql
+DO $$
+DECLARE
+    batch_start INT;
+    batch_end   INT;
+BEGIN
+    FOR batch_start IN 1..100000 BY 1000 LOOP
+        batch_end := batch_start + 999;
+
+        INSERT INTO inventory (product_sku, stock_level)
+        SELECT
+            'sku_' || gs::text AS product_sku,
+            (random() * 99 + 1)::int AS stock_level  -- random int 1–100
+        FROM generate_series(batch_start, batch_end) gs;
+    END LOOP;
+END $$;
+```
+
+Select a row `select * from inventory where product_sku = 'sku_58991';` Takes ~50ms which is perfectly fine for development.  If we had a "real" production grade Postgers server running say in AWS or Google cloud thgis would be much faster.
+
+OK that concludes the lowest layer of our data management which is Postgres, now we are going to go up a layer and talk about how we manage that data in our application.
+
+Our application is written in `go`, so the first thing we need to do is connect our go application with the postgres database. 
+
+We are going to start walking through the code or our application but I;'m only going to focus on the parts relating to database connections. Lets start in `cmd/main.go`.  
+
+In the imports you will see `"github.com/jackc/pgx/v5/pgxpool"`. So pgx is a database driver that allows go apps to run SQL against Postgres. Its not the only one but its one that I've used a lot. Its very mature and reliable which is why we are using it.  Note  that we are pulling in the `pgxpool` module which provides a connection pool.  
+
+When designing a high performance application, it might get many requests at once. Each request needs a database connection, so we want to control or limit the amount of concurrent connections, so we don't overload the database by using too many connections.  pgxpool is a  connection pool for the pgx PostgreSQL driver in Go. It improves application performance by maintaining and reusing a pool of open database connections instead of opening and closing a new one for every operation. The pool automatically creates and destroys connections as needed, and allows us to limit the maximum number of concurrent connections in use at any one time.
+
+The first line `ctx, cancel := context.WithCancel(context.Background())` is somewhat related because this context permiates througout the code.  In Go, a context is used to manage deadlines, cancellation signals, and request-scoped values across API boundaries and goroutines. It allows you to control the lifecycle of operations—such as shutting down gracefully, timing out, or propagating cancellation—especially in concurrent or networked applications. Contexts help coordinate work and resource cleanup, making your programs more robust and responsive to external events. We will touch on contexts as we walk through the code.
+
+The next line is `setTimeZoneToUTCOrExit` which sets the timezone of our application to run in UTC stands for Coordinated Universal Time. It’s the primary time standard the world uses to keep clocks and time consistent. Think of it as the “baseline” time zone with no daylight savings, no regional offsets — just a stable reference clock. The rule of thumb when developing apps is to process and store any times in UTC and convert to local time only when presenting to the user. Now our app doesn't store nay times but its an important consideration for other apps.
+
+Clicking through the GetOptions takes us to where teh command line arguments are parsed.  We always have the database connection details passed in at runtime when the application starts, so our app can connect to different databases, but in the same way. We have one option which is the --postgres which is a URL containing the connection string that encodes the host and port to connect to, username and password along with the database name and any other options.  Using this format allows us to connect with low security to our local dev or test database, but then switch to better security or different options when connecting to a production server. See https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
+
+Back to the main code and the next block of code is `setupPostgresPoolOrExit` and it passes in a context, the call to ParseConfig allows the connection pool to be configured straight from the URL, but then I override this to have a maximum / min connection limit and a connection lifetime.  This means that connections once created will be discarded after they have been used for 30 mins. We then create the new Pool with that configuration and "ping" the database to check we are connecting ok. Finally we return the pool.
+
+Back to main, we call defer `pool.Close()` so that the application cleans up when it exists. 
+
+The pool is then passed in when we create the new `App` struture.
+
+So the `App` has a pgxpool variable.  Lets look at how its used which will lead us into the next part of our database access layer, using `sqlc`. Right click and show references takes is to `add_stock.go`. We pass the connection pool in when we call `NewRequestScope(ctx, req, app.nc, app.db)`. That calls `setupDbConn` which calls `pool.Acquire(ctx)` to get a connectioon from the pool, and assign it into the `RequestScope` struct. It starts a database transaction by calling `conn.Begin(ctx)` and then calls `db.New()` passing in the transaction.
+
+So before dive into that when a new RequestScope thing is created it pulls a db connection from the pool, starts a transcation.  This is a common pattern which helps us achieve the goal of Atomicity, whereby our API call might perform 10 queries agianst the database, some inserts, updates and deletes but they should happen atomically so we wrap all of the operatings in a database transaction and ensure either all of them happen together or none.
+
+We will see the transaction being committed at a later stage. Lets focus now on the db.New call. Clickin on that takes us to some code generated by `sqlc`, so lets talk about that now.
+
+sqlc is a developer tool that generates type-safe code from SQL queries.
+- You write plain SQL files (e.g., SELECT * FROM inventory WHERE product_sku = $1;).
+- sqlc reads those queries and your database schema, then generates Go functions and structs.
+- The generated code handles parameters and results safely, so you don’t have to hand-write query boilerplate.
+
+The benefit is sqlc lets you keep full control of your SQL while getting the convenience and safety of strongly typed code in Go.
+
+Wheneber we can use a tool like this its worth considering because boilerplate or generated code saves you time, is completely consistent and more reliable.
+
+To use sqlc it needs access to the database to read the table definitions, and we get some configuration options when it comes to code generation.  All that is done through the  `sqlc.yaml` file, so lets open that and take a look.
+
+- version: "2": The config file format version — 2 is the current stable format.
+- sql:The list of SQL generation targets. Each item describes how to generate code for a given schema and set of queries.
+- schema: Path (or directory) containing your schema files — CREATE TABLE, ALTER TABLE, etc. sqlc uses this to understand your database structure and types.
+- queries: File or directory where your SQL query files live (e.g., SELECT, INSERT, etc.). sqlc reads these queries and generates matching Go functions.
+- engine: Specifies which SQL dialect to use — here it’s postgresql.
+- gen: → go: Tells sqlc to generate Go code.
+- package: – the Go package name for the generated code (db).
+- out: – output directory where generated code will be placed (internal/db).
+- sql_package: – which Go SQL driver to use (pgx/v5 instead of the standard database/sql).
+- database: → uri: A connection string to your local or dev database.
+sqlc connects to it to validate queries and infer correct types.
+
+OK, so now we have our configuration sorted out lets examine our queries.  Open `query.sql` and examine the queries we have. All are prefixed by a specially formatted comment that sqlc will use to determine what kind of function it needs to generate. the `name:` part will end up being the go function name, and the suffix `:one` tells sqlc what the return value will be.  In all of our queries we are returning a single row, but this could be `:many` to return multiple rows. You can also specify `:exec` if no resultset is expected. There are many option options here see https://docs.sqlc.dev for more details.
+
+Lets examine each query in turn. First our AddInventory query. Add this product to inventory, and if it already exists, increase its stock instead of creating a duplicate. This is a simple example of a single query that performs two separate operations together. It trys the insert a new row with the product_sku and stock_level. The on conflict is triggered if there already exists a row with that product_sku, in which case instead of failing the query it will update the existing stock level. In this part of the query `EXCLUDED.stock_level` refers to the value being inserted and `inventory.stock_level` refers to the current value in the table.
+
+This kind of query helps improve system performance. We know that inserting and updating stock is a common operation, so we want it to happen as quickly as possible. By performing one SQL operation instead of two we halve the number round trips between our application server and our database.  When we examine telemetry in a later episode we will be able to quantify exactly how long these operations take.
+
+The other two operations RemoveInventory and GetInventory are straigtforward.
+
+One other thing to note is the use of $1, $2 which represent the parameters pased into the query.
+

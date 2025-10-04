@@ -432,3 +432,65 @@ END $$;
 ```
 
 Select a row `select * from inventory where product_sku = 'sku_58991';` Takes ~50ms which is perfectly fine for development.  If we had a "real" production grade Postgers server running say in AWS or Google cloud thgis would be much faster.
+
+OK that concludes the lowest layer of our data management which is Postgres, now we are going to go up a layer and talk about how we manage that data in our application.
+
+Our application is written in `go`, so the first thing we need to do is connect our go application with the postgres database. 
+
+We are going to start walking through the code or our application but I;'m only going to focus on the parts relating to database connections. Lets start in `cmd/main.go`.  
+
+In the imports you will see `"github.com/jackc/pgx/v5/pgxpool"`. So pgx is a database driver that allows go apps to run SQL against Postgres. Its not the only one but its one that I've used a lot. Its very mature and reliable which is why we are using it.  Note  that we are pulling in the `pgxpool` module which provides a connection pool.  
+
+When designing a high performance application, it might get many requests at once. Each request needs a database connection, so we want to control or limit the amount of concurrent connections, so we don't overload the database by using too many connections.  pgxpool is a  connection pool for the pgx PostgreSQL driver in Go. It improves application performance by maintaining and reusing a pool of open database connections instead of opening and closing a new one for every operation. The pool automatically creates and destroys connections as needed, and allows us to limit the maximum number of concurrent connections in use at any one time.
+
+The first line `ctx, cancel := context.WithCancel(context.Background())` is somewhat related because this context permiates througout the code.  In Go, a context is used to manage deadlines, cancellation signals, and request-scoped values across API boundaries and goroutines. It allows you to control the lifecycle of operations—such as shutting down gracefully, timing out, or propagating cancellation—especially in concurrent or networked applications. Contexts help coordinate work and resource cleanup, making your programs more robust and responsive to external events. We will touch on contexts as we walk through the code.
+
+The next line is `setTimeZoneToUTCOrExit` which sets the timezone of our application to run in UTC stands for Coordinated Universal Time. It’s the primary time standard the world uses to keep clocks and time consistent. Think of it as the “baseline” time zone with no daylight savings, no regional offsets — just a stable reference clock. The rule of thumb when developing apps is to process and store any times in UTC and convert to local time only when presenting to the user. Now our app doesn't store nay times but its an important consideration for other apps.
+
+Clicking through the GetOptions takes us to where teh command line arguments are parsed.  We always have the database connection details passed in at runtime when the application starts, so our app can connect to different databases, but in the same way. We have one option which is the --postgres which is a URL containing the connection string that encodes the host and port to connect to, username and password along with the database name and any other options.  Using this format allows us to connect with low security to our local dev or test database, but then switch to better security or different options when connecting to a production server. See https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
+
+Back to the main code and the next block of code is `setupPostgresPoolOrExit` and it passes in a context, the call to ParseConfig allows the connection pool to be configured straight from the URL, but then I override this to have a maximum / min connection limit and a connection lifetime.  This means that connections once created will be discarded after they have been used for 30 mins. We then create the new Pool with that configuration and "ping" the database to check we are connecting ok. Finally we return the pool.
+
+Back to main, we call defer `pool.Close()` so that the application cleans up when it exists. 
+
+The pool is then passed in when we create the new `App` struture.
+
+So the `App` has a pgxpool variable.  Lets look at how its used which will lead us into the next part of our database access layer, using `sqlc`. Right click and show references takes is to `add_stock.go`. We pass the connection pool in when we call `NewRequestScope(ctx, req, app.nc, app.db)`. That calls `setupDbConn` which calls `pool.Acquire(ctx)` to get a connectioon from the pool, and assign it into the `RequestScope` struct. It starts a database transaction by calling `conn.Begin(ctx)` and then calls `db.New()` passing in the transaction.
+
+So before dive into that when a new RequestScope thing is created it pulls a db connection from the pool, starts a transcation.  This is a common pattern which helps us achieve the goal of Atomicity, whereby our API call might perform 10 queries agianst the database, some inserts, updates and deletes but they should happen atomically so we wrap all of the operatings in a database transaction and ensure either all of them happen together or none.
+
+We will see the transaction being committed at a later stage. Lets focus now on the db.New call. Clickin on that takes us to some code generated by `sqlc`, so lets talk about that now.
+
+sqlc is a developer tool that generates type-safe code from SQL queries.
+- You write plain SQL files (e.g., SELECT * FROM inventory WHERE product_sku = $1;).
+- sqlc reads those queries and your database schema, then generates Go functions and structs.
+- The generated code handles parameters and results safely, so you don’t have to hand-write query boilerplate.
+
+The benefit is sqlc lets you keep full control of your SQL while getting the convenience and safety of strongly typed code in Go.
+
+Wheneber we can use a tool like this its worth considering because boilerplate or generated code saves you time, is completely consistent and more reliable.
+
+To use sqlc it needs access to the database to read the table definitions, and we get some configuration options when it comes to code generation.  All that is done through the  `sqlc.yaml` file, so lets open that and take a look.
+
+- version: "2": The config file format version — 2 is the current stable format.
+- sql:The list of SQL generation targets. Each item describes how to generate code for a given schema and set of queries.
+- schema: Path (or directory) containing your schema files — CREATE TABLE, ALTER TABLE, etc. sqlc uses this to understand your database structure and types.
+- queries: File or directory where your SQL query files live (e.g., SELECT, INSERT, etc.). sqlc reads these queries and generates matching Go functions.
+- engine: Specifies which SQL dialect to use — here it’s postgresql.
+- gen: → go: Tells sqlc to generate Go code.
+- package: – the Go package name for the generated code (db).
+- out: – output directory where generated code will be placed (internal/db).
+- sql_package: – which Go SQL driver to use (pgx/v5 instead of the standard database/sql).
+- database: → uri: A connection string to your local or dev database.
+sqlc connects to it to validate queries and infer correct types.
+
+OK, so now we have our configuration sorted out lets examine our queries.  Open `query.sql` and examine the queries we have. All are prefixed by a specially formatted comment that sqlc will use to determine what kind of function it needs to generate. the `name:` part will end up being the go function name, and the suffix `:one` tells sqlc what the return value will be.  In all of our queries we are returning a single row, but this could be `:many` to return multiple rows. You can also specify `:exec` if no resultset is expected. There are many option options here see https://docs.sqlc.dev for more details.
+
+Lets examine each query in turn. First our AddInventory query. Add this product to inventory, and if it already exists, increase its stock instead of creating a duplicate. This is a simple example of a single query that performs two separate operations together. It trys the insert a new row with the product_sku and stock_level. The on conflict is triggered if there already exists a row with that product_sku, in which case instead of failing the query it will update the existing stock level. In this part of the query `EXCLUDED.stock_level` refers to the value being inserted and `inventory.stock_level` refers to the current value in the table.
+
+This kind of query helps improve system performance. We know that inserting and updating stock is a common operation, so we want it to happen as quickly as possible. By performing one SQL operation instead of two we halve the number round trips between our application server and our database.  When we examine telemetry in a later episode we will be able to quantify exactly how long these operations take.
+
+The other two operations RemoveInventory and GetInventory are straigtforward.
+
+One other thing to note is the use of $1, $2 which represent the parameters pased into the query.
+

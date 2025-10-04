@@ -352,3 +352,83 @@ This brings us to the end of the video on 'development environments'   Thanks fo
 
 # Episode 4
 
+Hi and welcome to my series on "Production grade system development". My name is Dave Oram and I'll be your gude as we todays espisode which covers our "Data layer".
+
+If you are new to this video series video series, I encourage you take go back and listen to previous videos as they cover some context to what we are covering today.
+
+OK, today we will be covering off the "data lyer". If you want to follow along point your browser at https://github.com/davidoram/beaker, otherwise you can just watch me cover all the steps.
+
+Its worth taking a take a lot of time and care to understand what our data is and how it inter-related, because thats the foundation of any appliction. Data also lives a lot longer than the applications that sit on top of them. Today we are building our application layer in go, but 15 or 20 years from now, we might be using another language, and we may need to bring our data from an old system into a new one. The code is re-written but the data is often migrated.
+
+
+Data is at the core of any application. In our scenario, we are building a stock keeping API, so our data is in the form of Product SKU's and quantities.
+
+The process that I start with when modelling real world data is to map them onto standards and domains.
+
+I don't know much about Product SKUs so I searched online to see if there was a standard for represneting SKUs. I couldn't find one so I looked around and designed a data type that represented what I thought was reasonable, a string between 1 and 64 chars long, containing alphanumeric underscore and hyphens. My thinking here is that spaces are probably not significant, wo we want to eliminate them. Why because if I was to represent two different SKUs "a1" and "a1 " on screen it would be very hard to tell they are different.
+
+To take another example imagine if our system modelled telephone numbers we have standard E.164 - and its defined https://en.wikipedia.org/wiki/E.164. If I wanted to store a phone number I would follow this standard. Why?  Because I know that if the data from system needs tointeract with another system, its much more likely that they will talk together. Data interchange between systems is an important measure of the usefulness of a system, so adopting standards will help your system interact with other systems more easily which is added value.
+
+The other data attrinute we will be modelling is stock levels.  After consulting with the business experts for my system they let me know that there is no upper bound for inventory levels, but they can't ever fall below zero. We also don't sell fractions of a SKU, so stock levels are best modelled as integer values that are >= 0.
+
+Because we started by gaining a good understanding of our domain data, we can now use that information to map that data into our application.  
+
+Our lowest level of data management is Postgres so start with that. Why did I choose Postgres over some other tool.  The main reason is that I have many years experience with it, its safe reliable, and available everywhere. There are many other valid alternatives but Postgres is a good choice for me because I can explain the features that I'm using as we go through the code.  
+
+In a previous video we showed parts of the Makefile where we start a Postgres server using docker compose.  I choose the latest version at the time of writing which is 18. 
+
+If you open the Makefile and find the `create-db` target it shows how we create the database. Lets go through the options and what they mean.
+
+- WITH OWNER postgres: Makes the PostgreSQL role postgres the owner of the new database.
+-	ENCODING 'UTF8':	•	Ensures the database uses UTF-8 character encoding.
+- LC_COLLATE='en_US.UTF-8' LC_CTYPE='en_US.UTF-8': 	Defines locale settings for string sorting (collation) and character classification (ctype). This means:
+  - Sorting and comparisons are case-insensitive for ordering purposes in the sense that "A" and "a" are considered equal in sort order (they’ll group together).
+  - Equality checks are still case-sensitive in standard SQL. 'a' != 'A'
+- TEMPLATE template0. Creates the new database as a copy of template0, which is a “minimal” empty template database in Postgres.	This ensures no extra extensions or locale settings are inherited accidentally from template1.
+
+OK so we have a an empty database how do we create the tables, indexes and our data definitions inside teh database so its ready to be used. 
+
+We use a tool called `sql-migrate` to apply database migration files which are basically versioned changes to teh database.   So how does it work, we write migration in plain SQL files, then the sql-migrate tool applies them in the correct order.  It tracks which migrations have been run in a special database table. The end result is scripted database setup that we can maintain just like any other source file. `sql-migrate` runs against databases other than Postgres, and provides other tools to reverse  out migrations etc.
+
+OK, lets look at running the migration. We actually did it as part of the last video but we can do it again by running `make bootstrap` which will recreate the database, and run the migrations. When we run that `sql-migrate` reports that its `Applied 1 migration` Lets look at teh sql-migrate command the first option `up` means apply any migrations that haven't yet been applied. The `--config dbconfig.yml` option points to the configuration file for sql-migrate and the third option --env specifies an environment which in our case will be either `development` or `test`. Lets take a look at the config file. In there there are two sections, one for each environment and under that options that tell sql-migrate the `dialect` which dictates database specific behaviour, `datasource` which tells it how to connect to the db, `dir` for migration files, and `table` that contains the record of which migrations have run.
+
+Lets look at our `db-migrations` directory to see what files it executed.  There is only one `db-migrations/20250716085349-create-tables.sql`. The strange filename is an ordering mechanism thats used to order the files, and when you have more than one file sql-migrate will apply them in the same order that vs code shows the.  Open that file and you see some SQL commands and some comments.  First of all the `+migrate Up` and `+migrate Down` comments tell sql-migrate which block of SQL to run.  We are migrating `up` so lets focus on the top block.
+
+Our system has a single database table called `inventory` with two columns. The `product_sku` has type text which is the appropriate data type to hold strings, and we have made it not null, and the primary key. By making it not nullable we prevent any NULL values from being stored in that column, so we can only have strings, and by making it the primary key Postgres will automatially add a unique index onto that column, enabling super fast lookup when looking for an exact match. 
+
+Next the `stock_level` column is defined as an integer also not null.
+
+Now we have database constraints. A database constraint is a rule that the database enforces on a table or column to ensure data integrity — basically, it stops invalid or inconsistent data from being entered.
+
+Our inventory_stock_level_nonnegative ensures stock_level is never negative. If someone tries to insert `-5`, the DB will reject it.
+inventory_product_sku_format ensures product_sku only contains lowercase letters, numbers, hyphens, or underscores, and is 1–64 characters long. Prevents invalid SKUs like `ABC!@#` from being stored.
+
+Constraints like these are your first line of defense for keeping the data correct and predictable. With constraints, the database itself guarantees correctness no matter how the data gets inserted or updated, by the application or a migration script. The rules are defined in one place and are often very efficient because they are run inside the database server right next to the data itself.
+
+
+OK lets check the database is working OK.  I'm going to use a tool called Postico which is a third party app that can connect right from my mac into the Postgres database.  Thats allowed because in a previous video I showed how we configured the devcontainer to `forwardPorts` 5432 which makes that possible.
+
+Lets test the inserts - see 'test inserts'
+
+
+Lets load 100k rows into our database & check how query performance works
+
+```sql
+DO $$
+DECLARE
+    batch_start INT;
+    batch_end   INT;
+BEGIN
+    FOR batch_start IN 1..100000 BY 1000 LOOP
+        batch_end := batch_start + 999;
+
+        INSERT INTO inventory (product_sku, stock_level)
+        SELECT
+            'sku_' || gs::text AS product_sku,
+            (random() * 99 + 1)::int AS stock_level  -- random int 1–100
+        FROM generate_series(batch_start, batch_end) gs;
+    END LOOP;
+END $$;
+```
+
+Select a row `select * from inventory where product_sku = 'sku_58991';` Takes ~50ms which is perfectly fine for development.  If we had a "real" production grade Postgers server running say in AWS or Google cloud thgis would be much faster.

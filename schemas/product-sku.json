@@ -4,5 +4,14 @@
   "title": "Product SKU",
   "type": "string",
   "pattern": "^[A-Za-z0-9_-]+$",
-  "description": "The SKU (Stock Keeping Unit) identifier for the product."
+  "description": "The SKU (Stock Keeping Unit) identifier for the product. Consisting of alphanumeric characters, underscores, or hyphens. Min length of 1 character. Max length of 64 characters.",
+  "minLength": 1,
+  "maxLength": 64,
+  "examples": [
+    "SKU12345",
+    "PROD-001",
+    "ITEM_67890",
+    "a",
+    "A1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5Z6_7-8"
+  ]
 }

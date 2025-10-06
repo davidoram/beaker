@@ -103,7 +103,7 @@ schema-lint:
 	@echo "All schemas are valid!"
 
 .PHONY: run
-run: lint build postgres-ready
+run: test schema-lint build postgres-ready
 	OTEL_SERVICE_NAME=beaker \
 	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=codespace \
 	OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \
@@ -136,13 +136,13 @@ test-otel-error:
 
 .PHONY: test-add
 test-add:
-	nats req stock.add '{"product-sku": "coffee-cup", "quantity": 10}'
+	nats --context NATS_CREDS_CALLER req stock.add '{"product-sku": "coffee-cup", "quantity": 10}'
 
 .PHONY: test-get
 test-get:
-	nats req stock.get '{"product-sku": "coffee-cup"}'
-	nats req stock.get '{"product-sku": "coaster"}'
+	nats --context NATS_CREDS_CALLER req stock.get '{"product-sku": "coffee-cup"}'
+	nats --context NATS_CREDS_CALLER req stock.get '{"product-sku": "coaster"}'
 
 .PHONY: test-remove
 test-remove:
-	nats req stock.remove '{"product-sku": "coffee-cup", "quantity": 7}'
+	nats --context NATS_CREDS_CALLER req stock.remove '{"product-sku": "coffee-cup", "quantity": 7}'

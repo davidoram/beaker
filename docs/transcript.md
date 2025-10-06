@@ -549,4 +549,161 @@ The cli tool will be used in our build phase, to check that our JSON Schema file
 
 At runtime we will verify that the request coming in via an API matches the JSON Schema before processing it, so in effect it performs validation on the request. This saves us a lot of development time, which otherwise we would have had to do manually.  Because JSON Schema allows you to define validations inside the schema we can use the library to perform those validations for us. We effectively move the validation from go code -> JSON Schema configuration files. Writing less code is allways a good goal to strive for so this fits with our philosophy.
 
-We would normally verify our responses against the schema, at least in unit tests although I don't have an 
+I vaildate that API responses match the schema in unit tests.
+
+Lets start by looking at a JSON Schema file. Open up the request for stock add in schemas/stock-add.request.json.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+```
+- Declares the JSON Schema version (draft 2020-12). This is the latest version of the JSON Schema standard.
+
+```json
+  "$id": "http://github.com/davidoram/beaker/schemas/stock-add.request.json",
+```
+- Unique identifier (URI) for this schema so it can be referenced by others.
+
+```json
+  "title": "stock-add.request",
+```
+- Human-readable title for the schema.
+
+```json
+  "type": "object",
+```
+- The JSON data must be an object (key-value pairs).
+
+```json
+  "properties": {
+```
+- Lists the valid fields inside the object.
+
+```json
+    "product-sku": {
+      "$ref": "http://github.com/davidoram/beaker/schemas/product-sku.json"
+    },
+```
+- The `product-sku` field must follow another schema that defines valid SKU values.
+
+```json
+    "quantity": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The number of units to add, must be at least 1."
+    }
+```
+- The `quantity` field must be an integer ≥ 1, with a helpful description.
+
+```json
+  "required": ["product-sku", "quantity"],
+```
+- Both fields are mandatory.
+
+```json
+  "additionalProperties": false
+}
+```
+- No extra fields beyond these two are allowed.
+
+**Summary:**  
+This schema defines a “stock add” request object that must include a valid `product-sku` and a positive integer `quantity`, and forbids any other properties.
+
+But we dont yet  fully understand what the `product-sku` definition is. Its defined by `$ref` `http://github.com/davidoram/beaker/schemas/product-sku.json`, which tells the JSON schema compiler to look elsewhere for the definition of product-sku.   
+
+Lets open up `schemas/product-sku.json` to look at how that is defined.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+```
+- Declares that this file uses the 2020-12 version of the JSON Schema standard.
+
+```json
+  "$id": "http://github.com/davidoram/beaker/schemas/product-sku.json",
+```
+- Gives this schema a unique identifier (URI) so other schemas can reference it.
+
+```json
+  "title": "Product SKU",
+```
+- Human-readable name for the schema.
+
+```json
+  "type": "string",
+```
+- The value must be a JSON string (not an object or number).
+
+```json
+  "pattern": "^[A-Za-z0-9_-]+$",
+```
+- A regular expression that defines valid characters — only letters, digits, underscores, and hyphens are allowed.
+
+```json
+  "description": "The SKU (Stock Keeping Unit) identifier for the product. Consisting of alphanumeric characters, underscores, or hyphens. Min length of 1 character. Max length of 64 characters.",
+```
+- Explains what this field represents and its constraints, useful for documentation tools.
+
+```json
+  "minLength": 1,
+  "maxLength": 64,
+```
+- The string must be at least 1 character and at most 64 characters long.
+
+```json
+  "examples": [
+    "SKU12345",
+    "PROD-001",
+    "ITEM_67890",
+    "a",
+    "A1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5Z6_7-8"
+  ]
+```
+- Example valid SKU strings that conform to the schema.
+
+**Summary:**  
+This schema defines a product SKU as a string between 1 and 64 characters, containing only alphanumeric characters, underscores, or hyphens — ensuring SKUs are consistent and valid across the system.
+
+OK, so thats great but how does the JSON Schema validator tool link the two files? There is a big clue in the `schema-lint` Makefile target.  When you run `make schema-lint` it iterates over each *.json file in the `schemas` directory, passing each to the `jv` command line tool.
+The `--assert-format` option tells jv to check that the file being validated is correctly formatted as a valid JSON Schema, not just valid JSON syntax.
+The `--draft 2020` option specifies the JSON Schema version (draft 2020-12) to validate against.
+Passing `--map http://github.com/davidoram/beaker/schemas=schemas`
+Creates a URI mapping — so when the schema references something like
+`"$ref": "http://github.com/davidoram/beaker/schemas/product-sku.json"`,
+`jv` knows to resolve that reference locally from the `schemas` directory instead of fetching it over the network.
+
+OK so when you run `make schema-lint` it should say "All schemas are valid", but lets double check that by making sure it picks up an error.  Lets edit the `schemas/stock-add.request.json` and introduce a typo into the `product-sku` $ref. When you re-run `make sdhema-lint` it will fail eith an error.
+
+So how do we perform checks inside the API at runtime.  It involves the following steps.
+- Creating JSON Schema files
+- Setting up a JSON Compiler
+- Performing the validation of the raw JSON
+- Defining go structs to match the schemas
+- If validation works then marshallinbg the raw JSON into the go structs so the application now has that data available to it.
+
+Lets start going through the steps.
+
+We have already seen the JSON Schema file definitions, for example `schemas/stock-add.request.json`. We factor out any common types into their own files so we can re-use them - like we did for `schemas/product-sku.json`
+
+Next lets look at how the JSON Schema compiler is constructed. Open the `internal/utility/schema_loader.go` and we are going to walk through the `NewJSONSchemaCompiler` method.  It takes a context (which is unused - my bad), and a schemaDir, the folder that holds the schema files.  We pass that to the `NewLoader` function passing a map from the url prefixes to the directory that holds the schemas with that prefix.  The loaders job is to resolve schemas as its validating. When the schame compiler needs a specific schema as identiifed by its id, it asks the Loader to retrieve it.  Our Loader will load our applications schemas from that directory, but then it will also the HTTP loader to retrieve schemas from across the internet.
+It creates an HTTPLoader which is a wrapper around the standard library http.Client setting the timeout to 15s. Then we create a FilePrefixLoader which checks if the url prefix matches one thats mapped to a folder, and if so loads that file from the disc & returns it. If no match is found the request is passed on to a jsonschema.SchemeURLLoader which delegates to other loaders based on the url scheme - thats the starting portion of the url eg: `file:` or `http:` etc, so if its a file it will use a FileLoader that simply loads files from the local file system, if its an http/https scheme it delegates to the HTTPLoader which issues an HTTP GET request to retrieve the file & return it.
+
+Now a little sidebar here. You might be thinking hey I don't see you caching any of these requests. Thats right. I always avoid caching until is proving to be a problem. Why? Because caching is hard. Caching is hard because you’re trading correctness for speed — and keeping that trade fair is tricky. You need to know when the truth chances (invalidating the cache), You need to know how long to cache for (TTL), in a distributed like the web there are many layers of caches - which layer is lying to us. All this makes for a tricky debugging scenario.
+
+OK, back to the `NewJSONSchemaCompiler` function, now that the loader is created, we create a NewCompiler, and attach the loader. Then we call `AssertContent` which means if the schema says this field should contain a specific type of encoded content (like base64 data or a certain media type), double-check that it really does, and `AssertFormat` which means if the schema says this field must be an email address, make sure it really looks like one — not just any string. Some JSON Schema compilers treat these things as hints but don't enforce them, and we want to be as strict as possibile with our inputs. Lastly we tell the compiler to use the latest draft version of JSON Schema. 
+
+When we want to use the compiler we will call  the `ValidateJSON` function in the internal/api/request_scope.go file. The first few lines capture telemetry data, which is important to know later - we will look at that in a later episode. Incideently capturing precicisely how long an operation like schema validation takes allows us to make data driven informed decisions. If the idea of caching schemas comes up you can look at the telemetry and guage exactly how loing is spent doing this work and decide if you need to optimize that part of the code path or not. Don't be fooled into thinking faster is better everywhere, sometimes you trade-off so much complexity to gain a millisecond or two it may not be worth it when you can look elsewhere for easier optimizations.
+
+OK, we check if rs.HasError - lets come back to that in future. We next check id the jsonData is emapty - thats immediately an error.  If the compiler hasn't been passed in thats also an error.  Finally we get to ask the compiler to `Compile` a schema for us based on the schema name we have asked for.  Again this is another potential place for caching, but I don't need to so I keep the code path simple. If the schema is nil, thats an error, but if not we use the function that the library provides to unmarshall the JSON, again checking for errors. Now we get to the important part. The call to `schema.Validate(data)` - this takes the JSON, and validates it against the schema returning an error if it doesn't comply. Its a simple as that one call to perform all the multitude of validations that your JSON Schemas can apply.
+
+It means I can change my schema files to include a new field, I specify that field is an email I don't have to change one line of my validation code because its all encoded in the JSON Schema file.  I encourage you to take a look at the web. Some examples incliude:
+- Regex: https://json-schema.org/learn/miscellaneous-examples#regular-expression-pattern
+- Complex objects with nested properties: https://json-schema.org/learn/miscellaneous-examples#complex-object-with-nested-properties
+
+The key point I'm making is that we move validation from code into configuration files. So whats the trade-off. Theres always a tradeoff. What is means is that the error handling might not look as nice as a custom error message because the validator generates those error messages.
+
+Right lets assume our incoming data matches the JSON Schema, how do we work with in inside the `go` applictaion code.  Thats actually pretty simple, we marshal the data from JSON into a go struct using the standard library. 
+
+Lets take the example of our incoming 'stock add' request. The go struct definied in file `schemas/stock_add_request.go` and its super simple. Open up that file and you will see near the top we define a constant representing the schema `StockAddRequestSchema`. We will be using that later in the application code when we ask the jv library to validate some JSON against a specific schema.  Next it defines the `StockAddRequest` struct which contains the same fields we defined in the JSON schema file. Whats important to note is the use of structure tags. Those are the notataions inside the backticks to the right of each field, and they tell the standard librarys json module how to map JSON into the struct (called marshalling), and from a struct back out to JSON (called unmarshalling). You can learn more about struct tags in go here https://go.dev/wiki/Well-known-struct-tags. Its something that your code can use to attach metadata to struct fields that can be extracted at runtime.
+
+

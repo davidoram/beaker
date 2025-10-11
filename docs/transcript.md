@@ -704,6 +704,24 @@ The key point I'm making is that we move validation from code into configuration
 
 Right lets assume our incoming data matches the JSON Schema, how do we work with in inside the `go` applictaion code.  Thats actually pretty simple, we marshal the data from JSON into a go struct using the standard library. 
 
-Lets take the example of our incoming 'stock add' request. The go struct definied in file `schemas/stock_add_request.go` and its super simple. Open up that file and you will see near the top we define a constant representing the schema `StockAddRequestSchema`. We will be using that later in the application code when we ask the jv library to validate some JSON against a specific schema.  Next it defines the `StockAddRequest` struct which contains the same fields we defined in the JSON schema file. Whats important to note is the use of structure tags. Those are the notataions inside the backticks to the right of each field, and they tell the standard librarys json module how to map JSON into the struct (called marshalling), and from a struct back out to JSON (called unmarshalling). You can learn more about struct tags in go here https://go.dev/wiki/Well-known-struct-tags. Its something that your code can use to attach metadata to struct fields that can be extracted at runtime.
+Lets take the example of our incoming 'stock add' request. The go struct definied in file `schemas/stock_add_request.go` and its super simple. Open up that file and you will see near the top we define a constant representing the schema `StockAddRequestSchema`. We will be using that later in the application code when we ask the jv library to validate some JSON against a specific schema.  Next it defines the `StockAddRequest` struct which contains the same fields we defined in the JSON schema file. Whats important to note is the use of structure tags. Those are the notataions inside the backticks to the right of each field, and they tell the standard librarys json module how to map JSON into the struct (called unmarshalling), and from a struct back out to JSON (called marshalling). You can learn more about struct tags in go here https://go.dev/wiki/Well-known-struct-tags. Its something that your code can use to attach metadata to struct fields that can be extracted at runtime.
 
+Once we have marshaled the data into a struct its able to be used in the application code.  
+
+Once the application has finished working with the data , we need to trasform the go struct back to JSON and return it to the called. 
+
+Once we populate a go structure representing a response like `schemas/stock_add_response.go` with the data it needs,  we marshal it from go struct -> JSON and return the response. This is done through the standard library function json.Marshal, which uses the same struct tags used by the unmarshalling process, but this time it converts the data in the struct tag to JSON representation.
+
+The return structure shows an interesting feature in the go struct tags. You will notice that the `ProductSKU,Quantity,Error` are all pointers and the struct tags might say "ProductSKU *string `json:"product-sku,omitempty"`"  The `omitempty` directive will tell the marshall process to skip that field if its empty or nil. It will become more obvious when we look at the guts of the API handlers in the next video how we can utilise this to make our life easier.
+
+So lets take stock of what we have learned. 
+
+- JSON is the chosen format for API requests, responses, and events due to its readability, lightweight nature, and wide language support.
+- JSON Schema is used to validate, document, and enforce the structure of JSON data for requests, responses, and events.
+- Go's built-in JSON support is leveraged for marshalling/unmarshalling, while the jsonschema library is used for schema validation both at build time and runtime.
+- Validation logic is moved from Go code to JSON Schema files, reducing manual code and improving maintainability.
+
+OK so that wraps up the 'data layer and API' discussion   Thanks for listening , and remember "Iron sharpens iron, and one man sharpens another.”. 
+
+Hit the subscribe button if you wnat to be notified when the next video is out. The next video in the series we will pull the threads together and walk through the microservice API implementation.
 

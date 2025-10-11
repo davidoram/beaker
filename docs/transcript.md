@@ -725,3 +725,72 @@ OK so that wraps up the 'data layer and API' discussion   Thanks for listening ,
 
 Hit the subscribe button if you wnat to be notified when the next video is out. The next video in the series we will pull the threads together and walk through the microservice API implementation.
 
+# Episode 6
+
+Hi and welcome to my series on "Production grade system development". My name is Dave Oram and I'll be your gude as we todays espisode which covers our "Microservice implementation".
+
+If you are new to this video series video series, I encourage you take go back and listen to previous videos as they cover some context to what we are covering today.
+
+OK, today we will be covering off the "Microservice implementation". If you want to follow along point your browser at https://github.com/davidoram/beaker, otherwise you can just watch me cover all the code.
+
+In previous episodes we have covered our database layer, how we use Postgres to store data and sqlc to write boilerplate access code, we've covered off the adoption of JSON Schema as a format for describing our API requests and responses. That video also covered off data validation, and also how we unmarshall JSON text -> go structures so our app can use it and then later marshall from go structs back to JSON text again so that data can be returned by the system.
+
+In todays video, we will draw those threads togteher and show how the NATS service framework can be used to build microservices.  
+
+The NATS open source system has great docs to help you start building services at https://docs.nats.io/using-nats/developer/services
+
+Lets cover what we mean by a service:
+- A service has a group of logically related functions
+- Services are discoverable. That is there is a way to query the system and discover what services are available
+- Services have one or more endpoints that, which represent operations that the service provides.
+
+OK, so lets layer on our scenario.
+- We have one service called "beaker"
+- Indside "beaker" we have three endpoints:
+  - "stock-add"
+  - "stock-remove"
+  - "stock-get"
+
+Each one of our endpoints takes a request (its input data), and return a response (output data)
+
+Before being allowed to call any API we require callers to prove who they are and that they have permission to call our API. We call this Authentication and Authorization.  In our case these functions are delegaated entirely to NATS. NATS has this functionality built in, its well designed by security experts so we can be confident that its a solid founcation to build upon.
+
+**Sidebar** Using NATS to solve our AuthN/AuthZ unburdens us from having to do implement these functions.  This is very hard to implement right, and it feels like a good decision in many circumstances because we are letting experts implement this function. This isn't just my recommendation. Take a look at Microsoft Secure Coding Guidelines, or the OWASP recommendations or RFC 7435. Its generally accepted that its poor practice to roll your own security.  However we must consider the downside.   In NATS that means that although NATS will provide AuthN/AuthZ when a request is routed to our service we have no idea who made the call. We just have to trust that NATS has checked they are allowed to do that.
+
+OK, so back to the NATS Services - lets talk about how they work.  NATS is a messaging system, and as such it supports a request/reply messaging pattern. This coventiently matches exactly what our microservice wants to do, the caller issues a request, the service decodes and processes that request and responds with a reply.
+
+How is the request routed to the correct microservice endpoint?  This is where we define a unique NATS **Subject** for each service to listen for requests. Subjects are strings that form unique names or addresses that publishers and subscribers can use to find each other.  
+
+Remember earlier I mentioned that services must be 'discoverable'. So there are some well know Subjects that all NATS services use to share information about their endpoints and the nats tools know about them so they can use that to find out the list of services and their endpoints. Thats explained at https://docs.nats.io/using-nats/developer/services#service-operations 
+
+Now that we understand how services get their requests, how do they get their reply? When the request is sent the caller behind the scenes generates a unique Subject for the reply to be sent back ok, that only that caller will know about and be listening on.  It will look something like `_INBOX.lcWgjX2WgJLxqepU0K9pNf.mpBW9tHK` where the `_INBOX` prefix is static, but the rest is random and unique.  So when the caller receives a request, its given the Subject on which to send the reply.  All of this detail is hidden when write our code using NATS Service framework, but its immportant to know because our first step is to create a NATS user with all the permissions needed to act as our Microservice.  We mentioned this an earlier video when we setup our codespace, and now its time to set this up.
+
+If you recall we are going to use Synadia Cloud as our NATS service provider. Our API caller will connect to the hosted NATS as will our microservice, and NATS will route the incoming requests and outgoing responses between them.
+
+So lets head over to Synadia and sig-up for their free plan. Navigate to https://www.synadia.com/cloud and click on the "Get started for free" button. Just make sure you are signing up for "Synadia Cloud" because they have a few product offerings. I signed up through GitHub which allows me to sign-in through that which is super conventient. Once you are in there you will be presented with a list of **Systems** which has only 1 called NGS (NATS Global System), click on that and it shows a list of **Accounts**. 
+
+Each Account is like its own separate namespace or environment. Users live **within** Accounts so they can only connect to that Account. This makes Accounts partiularly useful as a tool for SAAS account separation. By default NATS Users in one Account can't communicate with another Account.  
+
+OK, for our test we are going to create some users in the "default" Account, so click on that Account then click Users. 
+
+We are going to create three NATS users and make them all available for use in out codespace.
+
+- The first is called "App" and its the user that our microservice uses to connect to nats. Create that user with default permissions which gives it the rights to publish/subscribe to **any** subject. In a real production scenario you would adopt the principle of least permission which means you only give this user the least permissions possible for it to do its job.
+- The next caller is called "Caller" and its the user that we will give to our end user to call our microservice. We **will** adopt the principle of least permission and only give them. Add them with the following permissions:
+  - pub: `$SRV.>`, `stock.>`
+  - sub: `$INBOX.>`
+
+- The last caller is called "CLI" and its our user that we will use to do anything within the API from teh command line.
+
+For each of these callers:
+- Click get connected 
+- Download the credentials file
+- Transfer to codespace
+- Type in in terminal `base64 /path/to/credentials-file`
+- Copy the result to clipboard and go to https://github.com/settings/codespaces. Then add then each as secrets called `NATS_CREDS_APP`, `NATS_CREDS_CALLER` and `NATS_CREDS_CLI`
+- Delete the credentials file.
+
+**Important** don't forget to delete the credentials files from your codespace, so you don't accidently commit them to your git repo.  If you did that accidently you can just 'revoke' the credentials from teh synadia UI & create some new ones.
+
+OK, so lets test them out by restarting our codespace, which will allow the codespace to pick up the new variables.
+

@@ -792,5 +792,10 @@ For each of these callers:
 
 **Important** don't forget to delete the credentials files from your codespace, so you don't accidently commit them to your git repo.  If you did that accidently you can just 'revoke' the credentials from teh synadia UI & create some new ones.
 
-OK, so lets test them out by restarting our codespace, which will allow the codespace to pick up the new variables.
+OK, so lets test them out by starting a **new** codespace, which will allow the codespace to pick up the new variables.
 
+When the codespace is up, we can `View > Creation Log` and scroll to the bottom and see that our codespace startup sequence has automatically added the NATS credentials to our file system, by decodeing the values in those environment varibales, and turning them into files. Then it called `nats context add ...` to save them into the nats context so we can try them out at any time.
+
+Lets start by setting the using `nats context select` and selecting `NATS_CREDS_CLI`. This user can basically do anything.
+
+Type `nats service ls` to list the services running, and there are none. On Synadia cloud website lets view the "Connections" tab to see which Users are connected. There are none because the `nats ...` command,, connected, issues its command and disconnected.   So now I'm going to start out microservice running by staring a new terminal and calling `make bootstrap` (because we have a new codespace)  and then `make run`. It takes a minute or two the first time because it has to download libraries etc. But once thats done it should say something like `"INFO beaker is running"`. When that happens go back to the Synadia cloud web UI and you will see 1 connection 'beaker'. Clicking on it shows useful metrics on the right. 

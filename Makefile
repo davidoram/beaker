@@ -103,7 +103,7 @@ schema-lint:
 	@echo "All schemas are valid!"
 
 .PHONY: run
-run: test schema-lint build postgres-ready
+run: build test schema-lint postgres-ready
 	OTEL_SERVICE_NAME=beaker \
 	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=codespace \
 	OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \

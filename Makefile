@@ -136,13 +136,29 @@ test-otel-error:
 
 .PHONY: test-add
 test-add:
-	nats --context NATS_CREDS_CALLER req stock.add '{"product-sku": "coffee-cup", "quantity": 10}'
+	nats \
+		--context NATS_CREDS_CALLER \
+		req \
+		--translate='jq --color-output .' \
+		stock.add  '{"product-sku": "coffee-cup", "quantity": 10}' 
 
 .PHONY: test-get
 test-get:
-	nats --context NATS_CREDS_CALLER req stock.get '{"product-sku": "coffee-cup"}'
-	nats --context NATS_CREDS_CALLER req stock.get '{"product-sku": "coaster"}'
+	nats \
+		--context NATS_CREDS_CALLER \
+		req \
+		--translate='jq --color-output .' \
+		stock.get '{"product-sku": "coffee-cup"}'
+	nats \
+		--context NATS_CREDS_CALLER \
+		req \
+		--translate='jq --color-output .' \
+		stock.get '{"product-sku": "coaster"}'
 
 .PHONY: test-remove
 test-remove:
-	nats --context NATS_CREDS_CALLER req stock.remove '{"product-sku": "coffee-cup", "quantity": 7}'
+	nats \
+		--context NATS_CREDS_CALLER \
+		req \
+		--translate='jq --color-output .' \
+		stock.remove '{"product-sku": "coffee-cup", "quantity": 7}'

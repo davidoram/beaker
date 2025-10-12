@@ -798,4 +798,55 @@ When the codespace is up, we can `View > Creation Log` and scroll to the bottom 
 
 Lets start by setting the using `nats context select` and selecting `NATS_CREDS_CLI`. This user can basically do anything.
 
-Type `nats service ls` to list the services running, and there are none. On Synadia cloud website lets view the "Connections" tab to see which Users are connected. There are none because the `nats ...` command,, connected, issues its command and disconnected.   So now I'm going to start out microservice running by staring a new terminal and calling `make bootstrap` (because we have a new codespace)  and then `make run`. It takes a minute or two the first time because it has to download libraries etc. But once thats done it should say something like `"INFO beaker is running"`. When that happens go back to the Synadia cloud web UI and you will see 1 connection 'beaker'. Clicking on it shows useful metrics on the right. 
+Type `nats service ls` to list the services running, and there are none. On Synadia cloud website lets view the "Connections" tab to see which Users are connected. There are none because the `nats ...` command,, connected, issues its command and disconnected.   So now I'm going to start out microservice running by staring a new terminal and calling `make bootstrap run` (We run bootstrap because we allways need to do that when we start a open a new codespace).  You might see some error here around not being able to send telemery data - just ignore those for now,
+
+ It takes a minute or two the first time because it has to download libraries etc. But once thats done it should say something like `"INFO beaker is running"`. When that happens go back to the Synadia cloud web UI and you will see 1 connection 'beaker'. Clicking on it shows useful metrics on the right. It shows the IP address, and connection details. Below that is shows the NATS Account & User. Lastly it has subscriptions and statistics.
+
+ Before we dive into the code, lets illustrate how we make an API call.  Open the `Makefile` and find the `test-add` target. It uses the `nats` CLI tool to connect using the context we set up earlier called `NATS_CRED_CALLER`, which determines the authentication and authorisation rules.  Next it submits a `req` which is short for issueing a standard request/reply, the next parameter `stock.add` specified the NATS Subject where the request is sent, and the final paramater is the JSON payload which specifies the product-sku and quantity. I skipped the `--translate=` option which passes the result through the `jq` command line tool to format and colour the output so its easier for us to view.
+
+ The results show something like:
+
+ ```
+06:37:59 Sending request on "stock.add"
+06:38:00 Received with rtt 321.262441ms
+{
+  "ok": true,
+  "product-sku": "coffee-cup",
+  "quantity": 10
+}
+```
+
+Ok, so lets review how this call is made:
+- The request starts off in our codespace, initiated by the `nats` cli tool.
+- It Authenticates against `tls://connect.ngs.global` which is Synadias endpoint for the hosted global NATS supercluister
+- The User is Authentiocated and Authorized against my 'Default' NATS Account, and the request is allowed to be sent to the NATS subject `stock.add`. The payload is just a bunch of bytes, and the sender has also supplied a random response Subject eg: `_INBOX..lcWgjX2WgJLxqepU0K9pNf.mpBW9tHK`. The nats cli is listening for the response on that Subject.
+- The beaker server we have running is listening for requests to the `stock.add` Subject on that same NATS Account, so it received it, decodes the JSON, and processes it by interacting with the Postgres database, and encodes the response into JSON and sends it to the `_INBOX.lcWgjX2WgJLxqepU0K9pNf.mpBW9tHK` Subject. The response is just a bunch of bytes.
+- The `nats` cli receives the response and translates the output through `jq --color-output .` which colorizes and formats the JSON response.
+
+OK. So we know know at a high level whats happening. Lets look at how we implement one of these services.  We will focus on the `stock.add` endpoint that we just called.
+
+In a previous video we walked through `cmd/main.go` and looked at how the application starts up. It sets the Timezone to UTC, it configures our telemetry, creates a pool of Postgres connections, connects to NATS, creates a JSON Schema compiler. It sets up a signal handler then it starts the app.  On all of these bootstrap functions if something goes wrong the application exists with a non zero exit code.  This is the unix standard way of saying the an application failed for some reason.  Anyway if all goes well lets see what happens in the `startAppOrExit` func, which just calls `api.StartNewApp()`
+
+The `App` state is represented a struct that has links to all the subsystems that the app needs, a NATS connection, Database pool and JSON schema compiler. It also holds a micro.Service which is the NATS standard definition of a microservice.   Lets navigate to the `makeService` function to see how that works.
+
+It first creates a `micro.Config` struct that defines the service.  This information will be available when a caller introspects all the services available in a NATS system. The Service has a Name, Version, and Description. We also add an ErrorHandler which will be called in the case of an unhandled error, which just logs the error.
+
+Calling `micro.AddService(...)` registers the service.
+Next we add a `Group` called "stock" which simply groups a bunch of endpoints having the Subject prefix 'stock'.  To that Group we add the `stock.AddEndpoint(...)` handler. The first argument is the suffix to add to the group's subject so "add" becomes "stock.add" Subject.  The next argument is the Handler function that will process requests. The actual handler is implemeted in the `stockAddHandler` func, but I wrap it in a `traceHandler`.  Lets look at the `traceHandler` first - its further down in the same file.  
+
+The traceHandler function wraps a microservice request handler, starting a new OpenTelemetry trace span for each request, logging the API request with context, and then invoking the original handler with the traced context. This enables distributed tracing and contextual logging for each API endpoint call. We will touch on telemetry in the next video, so for now lets focus on the fact that it simply logs each incoming request, then calls the handler.
+
+Open the [internal/api/add_stock.go](internal/api/add_stock.go) file to see the `stockAddHandler` function.  It has the App struct as its method reciever, so it can access teh database, JSON Schema compiler etc.
+
+It works as follows:
+- First it creates a NewRequestScope, passing in the context, request, NATS conn, and db pool
+- Next it calls defer rs.Close to ensure that when this functio returns that request scope will be properly cleaned up
+- Next it asks the request scope to Validate the incoming request passing in the context, json schema compiler, request data (JSON payload)m and a JSON Schema name.
+- The request is Decoded into a `schemas.StockAddRequest` struct
+- Then AddStock is called with that request, and the response from that used to MakeStockAddResponse
+- Then the changes are  CommitOrRollback
+- Finally the RespondJSON function is called to send the response.
+
+So its an 8 line function that starts by creating a `RequestScope` and then calls a bunch of functions that all take that Request scope as wither the method reciever or an argument.
+
+So we should start by describing what a `requestScope` is. Lets examine the request-scope.go file.   

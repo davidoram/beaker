@@ -840,8 +840,8 @@ Open the [internal/api/add_stock.go](internal/api/add_stock.go) file to see the 
 
 It works as follows:
 - First it creates a NewRequestScope, passing in the context, request, NATS conn, and db pool
-- Next it calls defer rs.Close to ensure that when this functio returns that request scope will be properly cleaned up
-- Next it asks the request scope to Validate the incoming request passing in the context, json schema compiler, request data (JSON payload)m and a JSON Schema name.
+- Next it calls defer rs.Close to ensure that when this function returns that request scope will be properly cleaned up
+- Then the request scope  is directed to Validate the incoming request passing in the context, json schema compiler, request data (JSON payload)m and a JSON Schema name.
 - The request is Decoded into a `schemas.StockAddRequest` struct
 - Then AddStock is called with that request, and the response from that used to MakeStockAddResponse
 - Then the changes are  CommitOrRollback
@@ -850,3 +850,64 @@ It works as follows:
 So its an 8 line function that starts by creating a `RequestScope` and then calls a bunch of functions that all take that Request scope as wither the method reciever or an argument.
 
 So we should start by describing what a `requestScope` is. Lets examine the request-scope.go file.   
+
+The `requestScope` struct holds all the state relating to a single API request. It has:
+
+- a connection with nats
+- the incoming request
+- an error
+- A connection from the postgres connection pool
+- a database transaction
+- a db.Queries object.
+
+OK, so when the `newRequestScope` func is called it creates & returns a new requestScope. It calls `setupDbConn` passing the connection pool. Lets take a look at that func. It performs some telemetry - we will skip over that for now. Next it calls `pool.Acquire` which gets a free connection from teh connection pool. This is the first thing that can fail with an error so lets look at how errors are handled.  
+
+The overall design philosopy is that the request struct holds the first error that occurs inside its struct.  When ech step of the request processing starts it begins by checking - is there an error on tehe request & if there is it skips its normal processing.
+
+OK, so when an error occurs we can call one of two functions against the request struct. Either `AddSystemError` if its some error that occurs inside teh system that the caller has no control over.  "system" errors are the developers responsibility to monitor for, and fix if needed.  the other kind of error are called "Caller" errors and they are the responsibility of the API caller to fix. There is a function `addCallerError` to add them.
+
+So in our case if the error is caused when we acqiore a connection from teh db connection pool, thats a system error so we call that function.  In turn that calls the `addEror` func that performs some telemetry, creating spans and logs which we will talk about later. Then it simply stores the error on the `requestScope`.
+
+Back up to the `setupDbConn` lets assume the happy path and we get a connection, it saves the connection in the `requestScope` and proceeds to creates a database Transaction, perform similar error handling and stores that also against the `requestScope`.  Lastly it creates a new `db.Queries` and stores it against the request scope.
+
+So back up to the `newRequestScope` function, we now have populated the request itself from nats. This gives us access to the incoming request data. We have a nats connection  saved (so that later on we can send a response), and we have established a connection to our database through our `queries` field. The queries are using a connection gained from the pool, and wrapped in a db transaction so we can commit or rollback as required later. 
+
+Right lets retuen to the `stockAddHandler` function.
+The first thing we do is defer a call to `requestscope.close` Defer of course means that it will be called when the function returns, so lets lreturn to the close function until we have looked at the rest of the this function.
+
+The first thing we do is call the `validateJSON` func passing in the context, JSON Schema compiler, the request data (the JSON payload in []byte form), and the name of the schema that the payload shoud confiorm to (ie: `"http://github.com/davidoram/beaker/schemas/stock-add.request.json"`).
+
+validateJSON, creates a span for telemetry purposes.  Then it follows our standard check which says if the request scope has an error, return. Asumming all is ok, we perform some checks.
+- First verify the the jsonData isn't empty - if so here we add a Caller error - one thats entirely caused by the callers actions. and return.
+- If the JSON Schema compiler isn;t initialised thats a system error. Agian we record that and return.
+- Now we ask the compiler to compile the schema name, which returns an schema object we can use to validate the incoming data. If that fails its a system error and we return
+- Finally we unmarshall the bytes to an object using the `jsonschema.UnmarshalJSON` function. If its invalid JSON this will return an error.
+- Finally we ask the `schema` object to `Validate` that data, which confirms that the JSON matches the Schema definition.  This is where our library performs all the "heavy lifting" validating all the elements of that JSON for us. If it fails at this step its a "caller" error and we bail, but if it suceeds we have good JSON input and the `validateJSON` method returns.
+
+OK, back to `stockAddHandler`, next we call `decodeRequest`. This function looks a little different from the others because its a **generic** function. I'm passing in `schemas.StockAddRequest` inside square brackets, and that parameter tells teh function what type I want returned by the function, it has regular parametrs of a context and teh request scope object. Lets look at how it works
+
+The`decodeRequest` function is a generic helper that decodes incoming request data into a specified type T, while integrating tracing and error handling:
+
+- It starts an OpenTelemetry trace span named "decode request" for observability.
+- It declares a variable decodedRequest of type T, which will hold the decoded result.
+- If the requestScope already has an error (checked via rs.hasError()), it immediately returns the zero value of T, skipping decoding. This is our standard pattern.
+- It attempts to unmarshal the raw request data (rs.req.Data()) from JSON into decodedRequest.
+If unmarshaling fails, it records the error as a "caller error" in the requestScope (using rs.addCallerError), and returns the zero value of T.
+If decoding succeeds, it returns the populated decodedRequest.
+
+Recall in an earlier episode that the `json.Unmarshal` populates our go struct using struct tags.  Now we have our input data as native go objects which are easy to maipulate.
+
+CONTINUE HERE `makeStockAddResponse`
+
+
+. Lets see what that does.
+The `close` function is written in a "defensive" style because it can't be sure what succeeded earlier, so it doesn't make any assumptions.  So if there was no db connection acquired, it returns. However if we got past that it runs a defer to ensures that the connection will be set to nil on return. Next it calls `commitOrRollback`.
+
+OK so just like `close` this function is written in a defensive style, so it starts by checking if the transaction was ever created, and if not it can return.
+
+Next it checks if the requestScope has an error records, if it does that elicits a transaction rollback, so that any 'partial' database changes are reverted. The rollback itself can get an error so we have a similar pattern than we have seen before and it records this as a "system" error.  This will log the error and so forth.
+
+Assuming a happy path we will commit the transaction, and add the usual error handling around this.
+
+OK back to the `close` function. Last but not we release the database connection that the request has been using back to the connection pool, by calling the Release function.
+

@@ -20,14 +20,7 @@ func (app *App) stockAddHandler(ctx context.Context, req micro.Request) {
 	rs := &stockAddScope{raw}
 	defer rs.close(ctx)
 	rs.validateJSON(ctx, app.compiler, req.Data(), schemas.StockAddRequestSchema)
-	_ = rs.decodeRequest(ctx)
-	// use the decoded request stored on the scope; if decode failed then the error is on the scope
-	if rs.hasError() {
-		resp := rs.makeStockAddResponse(ctx, nil)
-		rs.commitOrRollback(ctx)
-		rs.respondJSON(ctx, req, resp)
-		return
-	}
+	rs.decodeRequest(ctx)
 	resp := rs.makeStockAddResponse(ctx, rs.addStock(ctx))
 	rs.commitOrRollback(ctx)
 	rs.respondJSON(ctx, req, resp)
@@ -44,11 +37,11 @@ func (rs *stockAddScope) addStock(ctx context.Context) *db.Inventory {
 	}
 
 	// get typed request
-	reqTyped := rs.Request()
+	request := rs.Request()
 	// if decode failed, hasError would have been true earlier and we'd have returned
 	params := db.AddInventoryParams{
-		ProductSku: string(reqTyped.ProductSKU),
-		StockLevel: int32(reqTyped.Quantity),
+		ProductSku: string(request.ProductSKU),
+		StockLevel: int32(request.Quantity),
 	}
 	inventory, err := rs.queries.AddInventory(ctx, params)
 	if err != nil {

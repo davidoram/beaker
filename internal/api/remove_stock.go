@@ -20,13 +20,7 @@ func (app *App) stockRemoveHandler(ctx context.Context, req micro.Request) {
 	rs := &stockRemoveScope{raw}
 	defer rs.close(ctx)
 	rs.validateJSON(ctx, app.compiler, req.Data(), schemas.StockRemoveRequestSchema)
-	_ = rs.decodeRequest(ctx)
-	if rs.hasError() {
-		resp := rs.makeStockRemoveResponse(ctx, nil)
-		rs.commitOrRollback(ctx)
-		rs.respondJSON(ctx, req, resp)
-		return
-	}
+	rs.decodeRequest(ctx)
 	updatedInventory := rs.removeStock(ctx)
 	rs.emitLowStockEvent(ctx, updatedInventory)
 	resp := rs.makeStockRemoveResponse(ctx, updatedInventory)
@@ -49,10 +43,10 @@ func (rs *stockRemoveScope) removeStock(ctx context.Context) *db.Inventory {
 		return nil
 	}
 
-	reqTyped := rs.Request()
+	request := rs.Request()
 	params := db.RemoveInventoryParams{
-		ProductSku: reqTyped.ProductSKU,
-		StockLevel: int32(reqTyped.Quantity),
+		ProductSku: request.ProductSKU,
+		StockLevel: int32(request.Quantity),
 	}
 	inventory, err := rs.queries.RemoveInventory(ctx, params)
 	if err != nil {
@@ -64,9 +58,9 @@ func (rs *stockRemoveScope) removeStock(ctx context.Context) *db.Inventory {
 				// Branch by constraint name
 				switch pgErr.ConstraintName {
 				case "inventory_stock_level_nonnegative":
-					rs.addCallerError(ctx, fmt.Errorf("stock level cannot go below zero for %s", reqTyped.ProductSKU))
+					rs.addCallerError(ctx, fmt.Errorf("stock level cannot go below zero for %s", request.ProductSKU))
 				case "inventory_product_sku_format":
-					rs.addCallerError(ctx, fmt.Errorf("invalid SKU format: %s", reqTyped.ProductSKU))
+					rs.addCallerError(ctx, fmt.Errorf("invalid SKU format: %s", request.ProductSKU))
 				default:
 					rs.addCallerError(ctx, fmt.Errorf("business rule violated: %s", pgErr.Message))
 				}

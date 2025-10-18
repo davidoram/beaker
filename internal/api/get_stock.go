@@ -23,13 +23,7 @@ func (app *App) stockGetHandler(ctx context.Context, req micro.Request) {
 	rs := &stockGetScope{raw}
 	defer rs.close(ctx)
 	rs.validateJSON(ctx, app.compiler, req.Data(), schemas.StockGetRequestSchema)
-	_ = rs.decodeRequest(ctx)
-	if rs.hasError() {
-		resp := rs.makeStockGetResponse(ctx, nil)
-		rs.commitOrRollback(ctx)
-		rs.respondJSON(ctx, req, resp)
-		return
-	}
+	rs.decodeRequest(ctx)
 	resp := rs.makeStockGetResponse(ctx, rs.getStock(ctx))
 	rs.commitOrRollback(ctx)
 	rs.respondJSON(ctx, req, resp)
@@ -45,12 +39,12 @@ func (rs *stockGetScope) getStock(ctx context.Context) *db.Inventory {
 		return nil
 	}
 
-	reqTyped := rs.Request()
-	inventory, err := rs.queries.GetInventory(ctx, reqTyped.ProductSKU)
+	request := rs.Request()
+	inventory, err := rs.queries.GetInventory(ctx, request.ProductSKU)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			slog.InfoContext(ctx, "no inventory found for product", "product_sku", reqTyped.ProductSKU)
-			return &db.Inventory{ProductSku: reqTyped.ProductSKU, StockLevel: 0}
+			slog.InfoContext(ctx, "no inventory found for product", "product_sku", request.ProductSKU)
+			return &db.Inventory{ProductSku: request.ProductSKU, StockLevel: 0}
 		}
 		rs.addSystemError(ctx, err)
 		return nil

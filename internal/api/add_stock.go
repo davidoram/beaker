@@ -21,9 +21,9 @@ func (app *App) stockAddHandler(ctx context.Context, req micro.Request) {
 	defer rs.close(ctx)
 	rs.validateJSON(ctx, app.compiler, req.Data(), schemas.StockAddRequestSchema)
 	rs.decodeRequest(ctx)
-	resp := rs.makeStockAddResponse(ctx, rs.addStock(ctx))
+	added := rs.addStock(ctx)
 	rs.commitOrRollback(ctx)
-	rs.respondJSON(ctx, req, resp)
+	rs.respondJSON(ctx, req, rs.makeStockAddResponse(ctx, added))
 }
 
 // addStock adds stock to the inventory.
@@ -45,7 +45,7 @@ func (rs *stockAddScope) addStock(ctx context.Context) *db.Inventory {
 	}
 	inventory, err := rs.queries.AddInventory(ctx, params)
 	if err != nil {
-		rs.addCallerError(ctx, err)
+		rs.addSystemError(ctx, err)
 		return nil
 	}
 	return &inventory

@@ -22,10 +22,9 @@ func (app *App) stockRemoveHandler(ctx context.Context, req micro.Request) {
 	rs.validateJSON(ctx, app.compiler, req.Data(), schemas.StockRemoveRequestSchema)
 	rs.decodeRequest(ctx)
 	updatedInventory := rs.removeStock(ctx)
-	rs.emitLowStockEvent(ctx, updatedInventory)
-	resp := rs.makeStockRemoveResponse(ctx, updatedInventory)
 	rs.commitOrRollback(ctx)
-	rs.respondJSON(ctx, req, resp)
+	rs.respondJSON(ctx, req, rs.makeStockRemoveResponse(ctx, updatedInventory))
+	rs.emitLowStockEvent(ctx, updatedInventory)
 }
 
 // removeStock adds stock to the inventory.
@@ -88,4 +87,22 @@ func (rs *stockRemoveScope) makeStockRemoveResponse(ctx context.Context, invento
 		resp.Quantity = utility.Ptr(int(inventory.StockLevel))
 	}
 	return &resp
+}
+
+// emitLowStockEvent checks if the updated inventory is below the low stock threshold
+func (rs *stockRemoveScope) emitLowStockEvent(ctx context.Context, updatedInventory *db.Inventory) {
+
+	if rs.hasError() {
+		return
+	}
+	// If stock was successfully removed and is now low, emit a LowStockEvent
+	if updatedInventory.StockLevel < LowStockThreshold {
+		event := schemas.LowStockEvent{
+			ProductSKU: updatedInventory.ProductSku,
+			StockLevel: int(updatedInventory.StockLevel),
+		}
+		if err := rs.emitEvent(ctx, event); err != nil {
+			slog.ErrorContext(ctx, "failed to emit low stock message", slog.Any("error", err))
+		}
+	}
 }

@@ -24,9 +24,10 @@ func (app *App) stockGetHandler(ctx context.Context, req micro.Request) {
 	defer rs.close(ctx)
 	rs.validateJSON(ctx, app.compiler, req.Data(), schemas.StockGetRequestSchema)
 	rs.decodeRequest(ctx)
-	resp := rs.makeStockGetResponse(ctx, rs.getStock(ctx))
+	// perform DB read, then commit/rollback, then build the response so commit errors are captured
+	inventory := rs.getStock(ctx)
 	rs.commitOrRollback(ctx)
-	rs.respondJSON(ctx, req, resp)
+	rs.respondJSON(ctx, req, rs.makeStockGetResponse(ctx, inventory))
 }
 
 // getStock retrieves the stock information for a product.

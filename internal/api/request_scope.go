@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 
 	"github.com/davidoram/beaker/internal/db"
@@ -55,13 +54,16 @@ func newRequestScope[T any](ctx context.Context, req micro.Request, nc *nats.Con
 }
 
 func (rs *requestScope[T]) close(ctx context.Context) {
-	if rs.conn == nil {
-		return
+	if rs.tx != nil {
+		err := rs.tx.Rollback(ctx)
+		if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			slog.ErrorContext(ctx, "failed to rollback tx during requestScope close", "error", err)
+		}
+		rs.tx = nil
 	}
-	defer func() { rs.conn = nil }()
-	rs.commitOrRollback(ctx)
 	if rs.conn != nil {
 		rs.conn.Release()
+		rs.conn = nil
 	}
 }
 
@@ -236,46 +238,24 @@ func (rs *requestScope[T]) respondJSON(ctx context.Context, req micro.Request, r
 	tracer := telemetry.GetTracer()
 	_, span := tracer.Start(ctx, "respond JSON")
 	defer span.End()
-	if rs.hasError() {
-		slog.ErrorContext(ctx, "Request has error", "error", rs.getError())
-		response.SetErrorAttributes(rs.getError())
-	}
+
 	err := req.RespondJSON(response)
 	if err != nil {
-		response.SetErrorAttributes(rs.getError())
+		span.SetStatus(codes.Error, err.Error())
 		slog.ErrorContext(ctx, "RespondJSON returned error", "error", err)
 	}
 }
 
-func (rs *requestScope[T]) emitEvent(ctx context.Context, event schemas.LowStockEvent) error {
-	log.Printf("Emitting low stock event: %+v", event)
+func (rs *requestScope[T]) emitEvent(ctx context.Context, event schemas.Event) error {
 	tracer := telemetry.GetTracer()
-	_, span := tracer.Start(ctx, "emit low stock event")
+	_, span := tracer.Start(ctx, "emit event")
 	defer span.End()
-	slog.InfoContext(ctx, "Emitting low stock event", "event", event)
+	slog.InfoContext(ctx, "Emitting event", "subject", event.Subject())
 	eventJSON, err := json.Marshal(event)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
-		slog.ErrorContext(ctx, "Failed to marshal low stock event", "error", err)
+		slog.ErrorContext(ctx, "Failed to marshal event", "error", err)
 		return err
 	}
 	return rs.nc.Publish(event.Subject(), []byte(eventJSON))
-}
-
-// emitLowStockEvent checks if the updated inventory is below the low stock threshold
-func (rs *requestScope[T]) emitLowStockEvent(ctx context.Context, updatedInventory *db.Inventory) {
-
-	if rs.hasError() {
-		return
-	}
-	// If stock was successfully removed and is now low, emit a LowStockEvent
-	if updatedInventory.StockLevel < LowStockThreshold {
-		event := schemas.LowStockEvent{
-			ProductSKU: updatedInventory.ProductSku,
-			StockLevel: int(updatedInventory.StockLevel),
-		}
-		if err := rs.emitEvent(ctx, event); err != nil {
-			rs.addSystemError(ctx, err)
-		}
-	}
 }

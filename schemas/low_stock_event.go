@@ -13,5 +13,5 @@ type LowStockEvent struct {
 
 // Subject returns the NATS subject that LowStockEvent will be published to.
 func (e LowStockEvent) Subject() string {
-	return "events.low_stock"
+	return "event.low_stock"
 }

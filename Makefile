@@ -162,3 +162,11 @@ test-remove:
 		req \
 		--translate='jq --color-output .' \
 		stock.remove '{"product-sku": "coffee-cup", "quantity": 7}'
+
+.PHONY: test-events
+test-events:
+	nats \
+		--context NATS_CREDS_CLI \
+		sub \
+		--translate='jq --color-output .' \
+		'event.>'

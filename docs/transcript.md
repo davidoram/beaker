@@ -838,6 +838,17 @@ The traceHandler function wraps a microservice request handler, starting a new O
 
 Open the [internal/api/add_stock.go](internal/api/add_stock.go) file to see the `stockAddHandler` function.  It has the App struct as its method reciever, so it can access teh database, JSON Schema compiler etc.
 
+At the  top of the file we define `stockAddScope` and wqe need a small sidebar to discuss this.
+
+```go
+type stockAddScope struct {
+  *requestScope[schemas.StockAddRequest]
+}
+```
+
+This is a tiny helper type that wraps the generic `requestScope` for the specific `StockAdd` request. By using this wrapper we get a simple, concrete receiver for our handler methods. Those methods can call `rs.Request()` to access the decoded `schemas.StockAddRequest` value. The pattern keeps handler code easy to read while still reusing the same generic scope implementation.
+
+
 It works as follows:
 - First it creates a NewRequestScope, passing in the context, request, NATS conn, and db pool
 - Next it calls defer rs.Close to ensure that when this function returns that request scope will be properly cleaned up
@@ -847,9 +858,9 @@ It works as follows:
 - Then the changes are  CommitOrRollback
 - Finally the RespondJSON function is called to send the response.
 
-So its an 8 line function that starts by creating a `RequestScope` and then calls a bunch of functions that all take that Request scope as wither the method reciever or an argument.
+So it's an 8 line function that starts by creating a `requestScope` and then calls a handful of helper methods that operate on that scope.
 
-So we should start by describing what a `requestScope` is. Lets examine the request-scope.go file.   
+So we should start by describing what a `requestScope` is. Let's examine the request-scope.go file.
 
 The `requestScope` struct holds all the state relating to a single API request. It has:
 
@@ -859,6 +870,8 @@ The `requestScope` struct holds all the state relating to a single API request. 
 - A connection from the postgres connection pool
 - a database transaction
 - a db.Queries object.
+- the decoded request value of type `T` after calling `rs.decodeRequest(ctx)`, for example our `StockAddRequest`
+
 
 OK, so when the `newRequestScope` func is called it creates & returns a new requestScope. It calls `setupDbConn` passing the connection pool. Lets take a look at that func. It performs some telemetry - we will skip over that for now. Next it calls `pool.Acquire` which gets a free connection from teh connection pool. This is the first thing that can fail with an error so lets look at how errors are handled.  
 

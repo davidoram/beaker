@@ -10,18 +10,31 @@ import (
 	"github.com/nats-io/nats.go/micro"
 )
 
+// concrete wrapper for stock add request scope so methods can work with concrete request fields
+type stockAddScope struct {
+	*requestScope[schemas.StockAddRequest]
+}
+
 func (app *App) stockAddHandler(ctx context.Context, req micro.Request) {
-	rs := newRequestScope(ctx, req, app.nc, app.db)
+	raw := newRequestScope[schemas.StockAddRequest](ctx, req, app.nc, app.db)
+	rs := &stockAddScope{raw}
 	defer rs.close(ctx)
 	rs.validateJSON(ctx, app.compiler, req.Data(), schemas.StockAddRequestSchema)
-	stockReq := decodeRequest[schemas.StockAddRequest](ctx, rs)
-	resp := rs.makeStockAddResponse(ctx, rs.addStock(ctx, stockReq))
+	_ = rs.decodeRequest(ctx)
+	// use the decoded request stored on the scope; if decode failed then the error is on the scope
+	if rs.hasError() {
+		resp := rs.makeStockAddResponse(ctx, nil)
+		rs.commitOrRollback(ctx)
+		rs.respondJSON(ctx, req, resp)
+		return
+	}
+	resp := rs.makeStockAddResponse(ctx, rs.addStock(ctx))
 	rs.commitOrRollback(ctx)
 	rs.respondJSON(ctx, req, resp)
 }
 
 // addStock adds stock to the inventory.
-func (rs *requestScope) addStock(ctx context.Context, req schemas.StockAddRequest) *db.Inventory {
+func (rs *stockAddScope) addStock(ctx context.Context) *db.Inventory {
 	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "add stock")
 	defer span.End()
@@ -30,9 +43,12 @@ func (rs *requestScope) addStock(ctx context.Context, req schemas.StockAddReques
 		return nil
 	}
 
+	// get typed request
+	reqTyped := rs.Request()
+	// if decode failed, hasError would have been true earlier and we'd have returned
 	params := db.AddInventoryParams{
-		ProductSku: string(req.ProductSKU),
-		StockLevel: int32(req.Quantity),
+		ProductSku: string(reqTyped.ProductSKU),
+		StockLevel: int32(reqTyped.Quantity),
 	}
 	inventory, err := rs.queries.AddInventory(ctx, params)
 	if err != nil {
@@ -42,7 +58,7 @@ func (rs *requestScope) addStock(ctx context.Context, req schemas.StockAddReques
 	return &inventory
 }
 
-func (rs *requestScope) makeStockAddResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockAddResponse {
+func (rs *stockAddScope) makeStockAddResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockAddResponse {
 	tracer := telemetry.GetTracer()
 	_, span := tracer.Start(ctx, "build stock-add response")
 	defer span.End()

@@ -30,7 +30,7 @@ const LowStockThreshold = 10
 // If rs.err is not nil, it means an error has occurred and the function should
 // act appropriately.
 // This allows for early exit from the function without further processing
-type requestScope struct {
+type requestScope[T any] struct {
 	nc  *nats.Conn
 	req micro.Request
 	err error
@@ -38,11 +38,15 @@ type requestScope struct {
 	conn    *pgxpool.Conn
 	tx      pgx.Tx
 	queries *db.Queries
+
+	// decoded holds the decoded request body as the concrete type T.
+	decoded T
 }
 
 // newRequestScope creates a new requestScope instance. It should be paired with a call to rs.Close(ctx) to guarantee cleanup.
-func newRequestScope(ctx context.Context, req micro.Request, nc *nats.Conn, pool *pgxpool.Pool) *requestScope {
-	rs := &requestScope{
+
+func newRequestScope[T any](ctx context.Context, req micro.Request, nc *nats.Conn, pool *pgxpool.Pool) *requestScope[T] {
+	rs := &requestScope[T]{
 		req: req,
 		nc:  nc,
 	}
@@ -50,7 +54,7 @@ func newRequestScope(ctx context.Context, req micro.Request, nc *nats.Conn, pool
 	return rs
 }
 
-func (rs *requestScope) close(ctx context.Context) {
+func (rs *requestScope[T]) close(ctx context.Context) {
 	if rs.conn == nil {
 		return
 	}
@@ -63,7 +67,7 @@ func (rs *requestScope) close(ctx context.Context) {
 
 // setupDbConn establishes a connection through the pgxpool.Pool, and wraps it into a Queries instance
 // which is then able to be used to access the database
-func (rs *requestScope) setupDbConn(ctx context.Context, pool *pgxpool.Pool) {
+func (rs *requestScope[T]) setupDbConn(ctx context.Context, pool *pgxpool.Pool) {
 	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "setup db conn")
 	defer span.End()
@@ -86,19 +90,19 @@ func (rs *requestScope) setupDbConn(ctx context.Context, pool *pgxpool.Pool) {
 
 // addCallerError adds a 'caller' error to the request scope which represents a problem made by
 // the API caller.
-func (rs *requestScope) addCallerError(ctx context.Context, err error) {
+func (rs *requestScope[T]) addCallerError(ctx context.Context, err error) {
 	rs.addError(ctx, err, false)
 }
 
 // addSystemError adds a 'system' error to the request scope which represents a problem that occurs inside our system
-func (rs *requestScope) addSystemError(ctx context.Context, err error) {
+func (rs *requestScope[T]) addSystemError(ctx context.Context, err error) {
 	rs.addError(ctx, err, true)
 }
 
 // adds an error, it only stores the first error encountered, but it logs all errors.
 // If its a system error will log at error level, and mark the span in error because as system owners we need
 // to be aware of these errors. Caller errors are logged at info level and do not mark the span in error
-func (rs *requestScope) addError(ctx context.Context, err error, isSystemError bool) {
+func (rs *requestScope[T]) addError(ctx context.Context, err error, isSystemError bool) {
 	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "add error")
 	defer span.End()
@@ -116,14 +120,14 @@ func (rs *requestScope) addError(ctx context.Context, err error, isSystemError b
 	}
 }
 
-func (rs *requestScope) hasError() bool { return rs.err != nil }
+func (rs *requestScope[T]) hasError() bool { return rs.err != nil }
 
-func (rs *requestScope) getError() error { return rs.err }
+func (rs *requestScope[T]) getError() error { return rs.err }
 
 // ValidateRequest checks if the request is valid.
 // It checks if the request is nil and if the request method is valid.
 // If the request is invalid, it adds an error to the request scope.
-func (rs *requestScope) validateJSON(ctx context.Context, compiler *jsonschema.Compiler, jsonData []byte, schemaName string) {
+func (rs *requestScope[T]) validateJSON(ctx context.Context, compiler *jsonschema.Compiler, jsonData []byte, schemaName string) {
 	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "validate JSON")
 	defer span.End()
@@ -165,9 +169,10 @@ func (rs *requestScope) validateJSON(ctx context.Context, compiler *jsonschema.C
 	}
 }
 
-// decodeRequest decodes the request data into the provided generic type T.
-// It returns the decoded value of type T. If an error occurs, it adds the error to the requestScope and returns the zero value of T.
-func decodeRequest[T any](ctx context.Context, rs *requestScope) T {
+// decodeRequest decodes the request data into the request type parameter T.
+// It returns the decoded value of type T. If an error occurs, it adds the error
+// to the requestScope and returns the zero value of T.
+func (rs *requestScope[T]) decodeRequest(ctx context.Context) T {
 	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "decode request")
 	defer span.End()
@@ -183,13 +188,21 @@ func decodeRequest[T any](ctx context.Context, rs *requestScope) T {
 		return decodedRequest
 	}
 
+	// store decoded request on the scope for later use
+	rs.decoded = decodedRequest
 	return decodedRequest
+}
+
+// Request returns the decoded request value (zero value if decode failed).
+// Use rs.hasError() to determine whether decoding reported an error.
+func (rs *requestScope[T]) Request() T {
+	return rs.decoded
 }
 
 // commitOrRollback commits the current database transaction if we have no errors.
 // If there are errors, it rolls back the transaction.
 // It should be called just before a response is sent back to the caller, so we have a chance to notify them if an error occured
-func (rs *requestScope) commitOrRollback(ctx context.Context) {
+func (rs *requestScope[T]) commitOrRollback(ctx context.Context) {
 
 	// No transaction -> nothing to commit or rollback
 	if rs.tx == nil {
@@ -223,7 +236,7 @@ func (rs *requestScope) commitOrRollback(ctx context.Context) {
 	}
 }
 
-func (rs *requestScope) respondJSON(ctx context.Context, req micro.Request, response schemas.APIResponse) {
+func (rs *requestScope[T]) respondJSON(ctx context.Context, req micro.Request, response schemas.APIResponse) {
 	tracer := telemetry.GetTracer()
 	_, span := tracer.Start(ctx, "respond JSON")
 	defer span.End()
@@ -238,7 +251,7 @@ func (rs *requestScope) respondJSON(ctx context.Context, req micro.Request, resp
 	}
 }
 
-func (rs *requestScope) emitEvent(ctx context.Context, event schemas.LowStockEvent) error {
+func (rs *requestScope[T]) emitEvent(ctx context.Context, event schemas.LowStockEvent) error {
 	log.Printf("Emitting low stock event: %+v", event)
 	tracer := telemetry.GetTracer()
 	_, span := tracer.Start(ctx, "emit low stock event")
@@ -254,7 +267,7 @@ func (rs *requestScope) emitEvent(ctx context.Context, event schemas.LowStockEve
 }
 
 // emitLowStockEvent checks if the updated inventory is below the low stock threshold
-func (rs *requestScope) emitLowStockEvent(ctx context.Context, updatedInventory *db.Inventory) {
+func (rs *requestScope[T]) emitLowStockEvent(ctx context.Context, updatedInventory *db.Inventory) {
 
 	if rs.hasError() {
 		return

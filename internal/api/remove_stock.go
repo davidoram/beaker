@@ -16,11 +16,18 @@ import (
 )
 
 func (app *App) stockRemoveHandler(ctx context.Context, req micro.Request) {
-	rs := newRequestScope(ctx, req, app.nc, app.db)
+	raw := newRequestScope[schemas.StockRemoveRequest](ctx, req, app.nc, app.db)
+	rs := &stockRemoveScope{raw}
 	defer rs.close(ctx)
 	rs.validateJSON(ctx, app.compiler, req.Data(), schemas.StockRemoveRequestSchema)
-	stockReq := decodeRequest[schemas.StockRemoveRequest](ctx, rs)
-	updatedInventory := rs.removeStock(ctx, stockReq)
+	_ = rs.decodeRequest(ctx)
+	if rs.hasError() {
+		resp := rs.makeStockRemoveResponse(ctx, nil)
+		rs.commitOrRollback(ctx)
+		rs.respondJSON(ctx, req, resp)
+		return
+	}
+	updatedInventory := rs.removeStock(ctx)
 	rs.emitLowStockEvent(ctx, updatedInventory)
 	resp := rs.makeStockRemoveResponse(ctx, updatedInventory)
 	rs.commitOrRollback(ctx)
@@ -28,7 +35,12 @@ func (app *App) stockRemoveHandler(ctx context.Context, req micro.Request) {
 }
 
 // removeStock adds stock to the inventory.
-func (rs *requestScope) removeStock(ctx context.Context, req schemas.StockRemoveRequest) *db.Inventory {
+// concrete wrapper for stock remove request scope
+type stockRemoveScope struct {
+	*requestScope[schemas.StockRemoveRequest]
+}
+
+func (rs *stockRemoveScope) removeStock(ctx context.Context) *db.Inventory {
 	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "remove stock")
 	defer span.End()
@@ -37,9 +49,10 @@ func (rs *requestScope) removeStock(ctx context.Context, req schemas.StockRemove
 		return nil
 	}
 
+	reqTyped := rs.Request()
 	params := db.RemoveInventoryParams{
-		ProductSku: req.ProductSKU,
-		StockLevel: int32(req.Quantity),
+		ProductSku: reqTyped.ProductSKU,
+		StockLevel: int32(reqTyped.Quantity),
 	}
 	inventory, err := rs.queries.RemoveInventory(ctx, params)
 	if err != nil {
@@ -51,9 +64,9 @@ func (rs *requestScope) removeStock(ctx context.Context, req schemas.StockRemove
 				// Branch by constraint name
 				switch pgErr.ConstraintName {
 				case "inventory_stock_level_nonnegative":
-					rs.addCallerError(ctx, fmt.Errorf("stock level cannot go below zero for %s", req.ProductSKU))
+					rs.addCallerError(ctx, fmt.Errorf("stock level cannot go below zero for %s", reqTyped.ProductSKU))
 				case "inventory_product_sku_format":
-					rs.addCallerError(ctx, fmt.Errorf("invalid SKU format: %s", req.ProductSKU))
+					rs.addCallerError(ctx, fmt.Errorf("invalid SKU format: %s", reqTyped.ProductSKU))
 				default:
 					rs.addCallerError(ctx, fmt.Errorf("business rule violated: %s", pgErr.Message))
 				}
@@ -66,7 +79,7 @@ func (rs *requestScope) removeStock(ctx context.Context, req schemas.StockRemove
 	return &inventory
 }
 
-func (rs *requestScope) makeStockRemoveResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockRemoveResponse {
+func (rs *stockRemoveScope) makeStockRemoveResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockRemoveResponse {
 	tracer := telemetry.GetTracer()
 	_, span := tracer.Start(ctx, "build stock-remove response")
 	defer span.End()

@@ -13,18 +13,30 @@ import (
 	"github.com/nats-io/nats.go/micro"
 )
 
+// concrete wrapper for stock get request scope
+type stockGetScope struct {
+	*requestScope[schemas.StockGetRequest]
+}
+
 func (app *App) stockGetHandler(ctx context.Context, req micro.Request) {
-	rs := newRequestScope(ctx, req, app.nc, app.db)
+	raw := newRequestScope[schemas.StockGetRequest](ctx, req, app.nc, app.db)
+	rs := &stockGetScope{raw}
 	defer rs.close(ctx)
 	rs.validateJSON(ctx, app.compiler, req.Data(), schemas.StockGetRequestSchema)
-	stockReq := decodeRequest[schemas.StockGetRequest](ctx, rs)
-	resp := rs.makeStockGetResponse(ctx, rs.getStock(ctx, stockReq))
+	_ = rs.decodeRequest(ctx)
+	if rs.hasError() {
+		resp := rs.makeStockGetResponse(ctx, nil)
+		rs.commitOrRollback(ctx)
+		rs.respondJSON(ctx, req, resp)
+		return
+	}
+	resp := rs.makeStockGetResponse(ctx, rs.getStock(ctx))
 	rs.commitOrRollback(ctx)
 	rs.respondJSON(ctx, req, resp)
 }
 
 // getStock retrieves the stock information for a product.
-func (rs *requestScope) getStock(ctx context.Context, req schemas.StockGetRequest) *db.Inventory {
+func (rs *stockGetScope) getStock(ctx context.Context) *db.Inventory {
 	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "get stock")
 	defer span.End()
@@ -33,11 +45,12 @@ func (rs *requestScope) getStock(ctx context.Context, req schemas.StockGetReques
 		return nil
 	}
 
-	inventory, err := rs.queries.GetInventory(ctx, req.ProductSKU)
+	reqTyped := rs.Request()
+	inventory, err := rs.queries.GetInventory(ctx, reqTyped.ProductSKU)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			slog.InfoContext(ctx, "no inventory found for product", "product_sku", req.ProductSKU)
-			return &db.Inventory{ProductSku: req.ProductSKU, StockLevel: 0}
+			slog.InfoContext(ctx, "no inventory found for product", "product_sku", reqTyped.ProductSKU)
+			return &db.Inventory{ProductSku: reqTyped.ProductSKU, StockLevel: 0}
 		}
 		rs.addSystemError(ctx, err)
 		return nil
@@ -45,7 +58,7 @@ func (rs *requestScope) getStock(ctx context.Context, req schemas.StockGetReques
 	return &inventory
 }
 
-func (rs *requestScope) makeStockGetResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockGetResponse {
+func (rs *stockGetScope) makeStockGetResponse(ctx context.Context, inventory *db.Inventory) *schemas.StockGetResponse {
 	tracer := telemetry.GetTracer()
 	_, span := tracer.Start(ctx, "build stock-get response")
 	defer span.End()

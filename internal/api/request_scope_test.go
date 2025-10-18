@@ -38,7 +38,7 @@ func TestDecodeRequest_HappyPath(t *testing.T) {
 	rs := &requestScope[schemas.StockGetRequest]{req: req}
 	defer rs.close(ctx)
 
-	_ = rs.decodeRequest(ctx)
+	rs.decodeRequest(ctx)
 	if rs.hasError() {
 		t.Fatalf("expected no error decoding valid JSON, got: %v", rs.getError())
 	}
@@ -57,7 +57,7 @@ func TestDecodeRequest_InvalidJSON(t *testing.T) {
 	rs := &requestScope[schemas.StockGetRequest]{req: req}
 	defer rs.close(ctx)
 
-	_ = rs.decodeRequest(ctx)
+	rs.decodeRequest(ctx)
 	if !rs.hasError() {
 		t.Fatalf("expected hasError after invalid JSON decode")
 	}

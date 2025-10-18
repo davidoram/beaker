@@ -169,28 +169,24 @@ func (rs *requestScope[T]) validateJSON(ctx context.Context, compiler *jsonschem
 	}
 }
 
-// decodeRequest decodes the request data into the request type parameter T.
-// It returns the decoded value of type T. If an error occurs, it adds the error
-// to the requestScope and returns the zero value of T.
-func (rs *requestScope[T]) decodeRequest(ctx context.Context) T {
+// decodeRequest unmarshals the request data into the decoded value. If an error occurs, it adds the error to the requestScope.
+func (rs *requestScope[T]) decodeRequest(ctx context.Context) {
 	tracer := telemetry.GetTracer()
 	ctx, span := tracer.Start(ctx, "decode request")
 	defer span.End()
 
-	var decodedRequest T
 	if rs.hasError() {
-		return decodedRequest
+		return
 	}
 
+	var decodedRequest T
 	err := json.Unmarshal(rs.req.Data(), &decodedRequest)
 	if err != nil {
 		rs.addCallerError(ctx, err)
-		return decodedRequest
 	}
 
 	// store decoded request on the scope for later use
 	rs.decoded = decodedRequest
-	return decodedRequest
 }
 
 // Request returns the decoded request value (zero value if decode failed).

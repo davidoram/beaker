@@ -1,6 +1,10 @@
 DB_URL=postgres://postgres:password@localhost?sslmode=disable
 DB_ENV?=development
 
+# Reusable OpenTelemetry environment assignments. Use this in targets that need
+# the OTEL_* environment variables to avoid duplication.
+OTEL_ENV = OTEL_SERVICE_NAME=beaker OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=codespace OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net OTEL_EXPORTER_OTLP_HEADERS=api-key=${NEW_RELIC_API_KEY} OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095 OTEL_EXPORTER_OTLP_COMPRESSION=gzip OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta
+
 .PHONY: bootstrap
 bootstrap: restart-docker-compose
 	$(MAKE) recreate-db DB_ENV=development
@@ -40,8 +44,6 @@ initial-tool-install:
 	go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
 	go get -tool github.com/equinix-labs/otel-cli@v0.4.5
 	go get -tool github.com/roerohan/wait-for-it@v0.2.14
-
-
 
 .PHONY: clean
 clean:
@@ -104,35 +106,17 @@ schema-lint:
 
 .PHONY: run
 run: build test schema-lint postgres-ready
-	OTEL_SERVICE_NAME=beaker \
-	OTEL_RESOURCE_ATTRIBUTES=service.version=0.1.0,deployment.environment=codespace \
-	OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \
-	OTEL_EXPORTER_OTLP_HEADERS=api-key=${NEW_RELIC_API_KEY} \
-	OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095 \
-	OTEL_EXPORTER_OTLP_COMPRESSION=gzip \
-	OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
-	OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta \
-	bin/beaker --postgres "postgres://postgres:password@localhost:5432/beaker_$(DB_ENV)?sslmode=disable"
+	$(OTEL_ENV) bin/beaker --postgres "postgres://postgres:password@localhost:5432/beaker_$(DB_ENV)?sslmode=disable"
 
 .PHONY: test-otel
 test-otel:
-	OTEL_SERVICE_NAME=beaker \
-	OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \
-	OTEL_EXPORTER_OTLP_HEADERS=api-key=${NEW_RELIC_API_KEY} \
-	OTEL_EXPORTER_OTLP_COMPRESSION=gzip \
-	OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
-	otel-cli exec --name "curl google" curl https://google.com
+	$(OTEL_ENV) otel-cli exec --service Makefile --name test-otel sleep 1 
 
 # .IGNORE means that the target **will not** be considered failed if it returns a non-zero exit code.
 .IGNORE: test-otel-error
 .PHONY: test-otel-error
 test-otel-error:
-	OTEL_SERVICE_NAME=beaker \
-	OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \
-	OTEL_EXPORTER_OTLP_HEADERS=api-key=${NEW_RELIC_API_KEY} \
-	OTEL_EXPORTER_OTLP_COMPRESSION=gzip \
-	OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
-	otel-cli exec --name "test error" --attrs "beaker.foo=bar,beaker.baz=qux" false
+	$(OTEL_ENV) otel-cli exec --service Makefile --name test-otel-error false
 
 .PHONY: test-add
 test-add:

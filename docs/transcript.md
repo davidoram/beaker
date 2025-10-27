@@ -723,9 +723,47 @@ So lets take stock of what we have learned.
 
 OK so that wraps up the 'data layer and API' discussion   Thanks for listening , and remember "Iron sharpens iron, and one man sharpens another.”. 
 
-Hit the subscribe button if you wnat to be notified when the next video is out. The next video in the series we will pull the threads together and walk through the microservice API implementation.
+Hit the subscribe button if you wnat to be notified when the next video is out. The next video in the series we will discuss Telemetry. I'm looking forward to seeing you then.
+
 
 # Episode 6
+
+Hi and welcome to my series on "Production grade system development". My name is Dave Oram and I'll be your gude as we todays espisode which covers  "Telemetry".
+
+If you are new to this video series video series, I encourage you take go back and listen to previous videos as they cover some context to what we are covering today.
+
+OK, If you want to follow along point your browser at https://github.com/davidoram/beaker, otherwise you can just watch me cover all the code.
+
+I've touched on Telemetry before but in this episode we are going to do more of a deep dive  into what it is and how essential it it to any production grade systems.
+
+Telemetry is a fancy word that means 'measuring something' and sending it somewhere for monitoring.  Think of in a hospital the heart monitor attached to a patent is sending a stream of data to the nursing station.
+
+Its a bit like that with our application. We want to be sure that our system is online and responding correctly, so that we can serve our customers well.  Some systems define these requirements more formally in something called 'service level agreements' that might state the response times for an API, eg: 95% of responses in 1s and 99% in 2s.  So we can use telemetry to measure that capture that particular metric and grade our system against thos requirements.  Like the nurse monitoring the patient, we need that information to be available and measurable to evaluate their health.  Another thing that a heart monitor might do is trigger an alarm when a the heart rate goes outside of the normall range. The alarm might be an audible alert designed to draw attention quickly to an urgent problem.  We can use the same technique when our systems are behaving outside their expected bounds.
+
+We are using the standard called Open Telemetry that allows us to write our code to a vendor independent standard, and then choose from a number of vendors based on price, usability and other factors.
+
+For this application, we send telemetry directly to our vendor of choice. This is a bit of a cheat on my behalf to keep things simple. In a real production envrionment we would more likely run a piece of software called a collector or agent. With an collector, apps send telemetry to the collector whioch both run on the same host, the collector can be configured to filter, aggregate, and apply custom rules, before it sends telemetry data to the vendor. 
+
+Right so lets talk about the vendor I've chosen. We are going to sign up for New Relic using the instructions provided [here](./otel.md#setup-with-newrelic).  NewRelic, and many other vendors kindly offer a free account which is very generous, and allows you to perform some testing.  OK, So I'm assuming you have created a login to new Relic, then setup an API key, and added that API key to the codespace environment, in a similar way that we added values to for our Synadia Cloud NATS users.  The `NEW_RELIC_API_KEY` is another secret so you never commit that value into your source code, or share it with anyone.   If you accidently did that you can just revoke it and create another.  You will need to restart your codespace to allow it to pick up that value.
+
+Right, now that we have our account set-up lets test it by running `make test-otel`. Before we run it lets take a look at that target.  It executes the `otel-cli` tool, which is a third party tool that we installed in the codespace. It provides the abaility to integrate with any vendor that offers an Open Telemetry back end. You will notice that at the top of the Makefile we setup an OTEL_ENV which configures all the standard environment variables that OTEL tools use. These variables will not only be use by the `otel-cli` tool, because our application uses the otel library, it recognised them and interprets them the same way. The variables include the endpoint of the NewRelic back end service, the API key, the service name, and attributes to pass with each trace. The `otel-cli` tool when you use the `exec` option, takes a command, measures the time it takes to run it, and sends that as a trace. It also notes the commands return value, and if its non-zero it will record that as an error on the span.  Run `make test-otel` a and also run `make test-otel-error` so we can simulate some traces.  The major difference between these targets, is the command it runs.  The `test-otel` runs the unix sleep command to sleep for a second, and the `test-otel-error` target runs the `false` command which simulates an error because it always returns non-zero.  
+
+
+Note you might have to give NewRelic a few seconds to ingest process and display your traces.  This is normal.  On the `traces` page if defaults to showing us traces from the last 30 mins, so that will include our traces, but you can adjust that and go back in time. It shows the number of traces, spans, duration and errors which get little graphs. We get some good infomation on this front page showing errors, average trace duration, etc.
+
+Click on the `test-otel` name and you get a list of traces - we only have 1, each with the name, when it occured, the number of entities, spans and errors. Lets click on one and view some details. The one yellow bar shows our trace which has a single span. The trace is a single logical operation, and spans are sub-steps.  Later on we will see some example but for now our operation has a span with 1 trace.  Its 1s long, and when I click on it I can see more information pop up in a panel to the right. This panel has several tabs, the first is called "performance", which isn't useful for our test case but might be when we have thousands of spans and we are looking at one in particular. It might help us see some trend - eg: this span might take significantly longer than the average. Click on the next tab called "attribnutes" this is a key one.  When we create traces and spans we can attach attrinutes which are user defined data to the span to capture extra meaning. OTEl published [semantic conventions[(https://opentelemetry.io/docs/specs/semconv/) which has a [go library](https://pkg.go.dev/go.opentelemetry.io/otel@v1.38.0/semconv/v1.37.0) with hundreds of methods to help you follow the correct naming conventions. For example if you want to follow the convention for setting your "service name" you would use the https://pkg.go.dev/go.opentelemetry.io/otel@v1.38.0/semconv/v1.37.0#ServiceName function. Like other parts of the system, following the conventions established by the OTEL standard means that our system will work with a wide variety of tools. If we use the standard names, then we increase the chance of our system working with standard tools. I've added a couple of attributes - the first is `deployment.environment` which is set to `codespace`, `service.version` set to `0.1.0`.  The `trace.id` is an important attrinute that is added by the Otel system. Thats the unique identifier for a trace. This can be useful to send back with every response, in fact we do that win the `respondJSON` function of request scope that we use to send all responses back. We send the trace.id back in a NATS message header called `traceparent` which minics the standard HTTP header name that the W3C have decided on to transmit traces back in.  Now we can ask our customers to record that value when they get API problems, and send it to us, which we can use to find the exact request in our telemetry system.  Note I'm simflifying things a bit here because in a high volume system it may not be practiucal or economic to save every trace.  Instead you might want to **sample** sucesfull requests and store all **error** responses. This is where the collector comes in because it allows you to set and change these policies to suit your situation without ever touching youre application.
+
+Right so lets call our API and look at the telemetry. The `makefile` has some targets we can run that exercise the API, lets run them as follows:
+- `make test-add`
+
+
+
+
+OK so that wraps up the 'Telemetry' discussion   Thanks for listening , and remember "Iron sharpens iron, and one man sharpens another.”. 
+
+Hit the subscribe button if you wnat to be notified when the next video is out. The next video in the series we will pull the threads together and walk through the microservice API implementation.
+
+# Episode 7
 
 Hi and welcome to my series on "Production grade system development". My name is Dave Oram and I'll be your gude as we todays espisode which covers our "Microservice implementation".
 
@@ -945,3 +983,5 @@ OK, finially we come to the end of our `stockAddHandler`. But no - wait we haven
 Lets see what that does.
 The `close` function is written in a "defensive" style because it can't be sure what succeeded earlier, so it doesn't make any assumptions. We have two database resources on each request, a `pgxpool.Conn` and a `pgx.Tx` and the goal of this function is to clean them up correctly. First it checks if there is a db transaction on the request, and if there is it rollsback. This is a safety measure to just check we don't end up with a connection containing a half backed update. Then it releases the connection back to the pool, so the next request can use it.
  
+Wow we have covered a lot in this episode It ties together the earlier episodes by showing how the microservice is implemented: it explains using NATS for request/reply service endpoints, wiring JSON Schema validation, OpenTelemetry tracing, and SQLC-backed Postgres transactions inside a per-request requestScope. The episode walks through the lifecycle of a request (validate → decode → DB work → commit/rollback → respond), the role of NATS subjects and credentials (Synadia Cloud), and explains design choices like emitting events only after successful commits and centralizing error handling in the request scope.
+

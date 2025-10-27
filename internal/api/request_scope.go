@@ -239,7 +239,10 @@ func (rs *requestScope[T]) respondJSON(ctx context.Context, req micro.Request, r
 	_, span := tracer.Start(ctx, "respond JSON")
 	defer span.End()
 
-	err := req.RespondJSON(response)
+	headers := nats.Header{
+		"traceparent": []string{span.SpanContext().TraceID().String()},
+	}
+	err := req.RespondJSON(response, micro.WithHeaders(micro.Headers(headers)))
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		slog.ErrorContext(ctx, "RespondJSON returned error", "error", err)

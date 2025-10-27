@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"testing"
 	"time"
@@ -11,8 +12,8 @@ import (
 	"github.com/davidoram/beaker/internal/db"
 	"github.com/davidoram/beaker/internal/utility"
 	"github.com/davidoram/beaker/schemas"
-	"github.com/nats-io/gnatsd/server"
-	natsserver "github.com/nats-io/nats-server/test"
+	"github.com/nats-io/nats-server/v2/server"
+	testserver "github.com/nats-io/nats-server/v2/test"
 	"github.com/nats-io/nats.go"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,7 @@ func TestApp(t *testing.T) {
 	defer server.Shutdown()
 
 	nc, err := nats.Connect(server.Addr().String())
+	log.Printf("Connected to NATS server: %s\n", nc.ConnectedServerVersion())
 	require.NoError(t, err)
 	defer nc.Close()
 
@@ -230,14 +232,14 @@ func getStock(t *testing.T, nc *nats.Conn, compiler *jsonschema.Compiler, unique
 
 func runNatsServerOnPort(t *testing.T, port int) *server.Server {
 	t.Helper()
-	opts := natsserver.DefaultTestOptions
+	opts := testserver.DefaultTestOptions
 	opts.Port = port
 	return runNatsServerWithOptions(t, &opts)
 }
 
 func runNatsServerWithOptions(t *testing.T, opts *server.Options) *server.Server {
 	t.Helper()
-	return natsserver.RunServer(opts)
+	return testserver.RunServer(opts)
 }
 
 func validateJSON(t *testing.T, compiler *jsonschema.Compiler, jsonData []byte, schemaRef string) {

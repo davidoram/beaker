@@ -10,8 +10,8 @@
         "vscode": {
             "settings": {},
             "extensions": [
-                "golang.Go",
-                "bierner.markdown-mermaid"
+                "bierner.markdown-mermaid",
+                "golang.go"
             ]
         }
     },

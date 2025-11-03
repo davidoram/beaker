@@ -38,7 +38,7 @@ func NewLoader(mappings map[string]string) (jsonschema.URLLoader, error) {
 		Timeout: 15 * time.Second,
 	})
 
-	return &JVLoader{
+	return &FilePrefixLoader{
 		mappings: mappings,
 		fallback: jsonschema.SchemeURLLoader{
 			"file":  FileLoader{},
@@ -47,12 +47,14 @@ func NewLoader(mappings map[string]string) (jsonschema.URLLoader, error) {
 		}}, nil
 }
 
-type JVLoader struct {
+// FilePrefixLoader is a custom JSON schema loader that maps URL prefixes to local directories.
+// If a URL does not match any prefix, it falls back to another loader.
+type FilePrefixLoader struct {
 	mappings map[string]string
 	fallback jsonschema.URLLoader
 }
 
-func (l *JVLoader) Load(url string) (any, error) {
+func (l *FilePrefixLoader) Load(url string) (any, error) {
 	for prefix, dir := range l.mappings {
 		if suffix, ok := strings.CutPrefix(url, prefix); ok {
 			return loadFile(filepath.Join(dir, suffix))

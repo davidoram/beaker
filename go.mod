@@ -18,7 +18,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
 	github.com/jackc/pgx/v5 v5.7.4
-	github.com/nats-io/nats.go v1.45.0
+	github.com/nats-io/gnatsd v1.4.1
+	github.com/nats-io/nats-server/v2 v2.11.8
+	github.com/nats-io/nats.go v1.47.0
 	github.com/samber/slog-multi v1.4.1
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/stretchr/testify v1.10.0
@@ -109,11 +111,9 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/nats-io/gnatsd v1.4.1 // indirect
+	github.com/nats-io/go-nats v0.0.0-00010101000000-000000000000 // indirect
 	github.com/nats-io/jsm.go v0.2.3 // indirect
 	github.com/nats-io/jwt/v2 v2.7.4 // indirect
-	github.com/nats-io/nats-server v1.4.1 // indirect
-	github.com/nats-io/nats-server/v2 v2.11.8 // indirect
 	github.com/nats-io/natscli v0.2.3 // indirect
 	github.com/nats-io/nkeys v0.4.11 // indirect
 	github.com/nats-io/nsc/v2 v2.11.0 // indirect

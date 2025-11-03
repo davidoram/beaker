@@ -2,6 +2,10 @@ package schemas
 
 import "github.com/davidoram/beaker/internal/utility"
 
+const (
+	StockRemoveResponseSchema = "http://github.com/davidoram/beaker/schemas/stock-remove.response.json"
+)
+
 // StockRemoveResponse represents the response structure for removing stock.
 // It corresponds to the stock-remove.response.json schema.
 // This implements the oneOf pattern using interface{} - you should check the actual type at runtime.

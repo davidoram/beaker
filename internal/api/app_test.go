@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"testing"
 	"time"
@@ -10,9 +12,10 @@ import (
 	"github.com/davidoram/beaker/internal/db"
 	"github.com/davidoram/beaker/internal/utility"
 	"github.com/davidoram/beaker/schemas"
-	"github.com/nats-io/gnatsd/server"
-	natsserver "github.com/nats-io/nats-server/test"
+	"github.com/nats-io/nats-server/v2/server"
+	testserver "github.com/nats-io/nats-server/v2/test"
 	"github.com/nats-io/nats.go"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,6 +25,7 @@ func TestApp(t *testing.T) {
 	defer server.Shutdown()
 
 	nc, err := nats.Connect(server.Addr().String())
+	log.Printf("Connected to NATS server: %s\n", nc.ConnectedServerVersion())
 	require.NoError(t, err)
 	defer nc.Close()
 
@@ -39,7 +43,7 @@ func TestApp(t *testing.T) {
 
 		uniqueSku := fmt.Sprintf("sku-%d", time.Now().UnixNano())
 
-		resp := addStock(t, nc, uniqueSku, 10)
+		resp := addStock(t, nc, compiler, uniqueSku, 10)
 
 		require.True(t, resp.OK)
 		assert.Equal(t, uniqueSku, *resp.ProductSKU)
@@ -51,7 +55,7 @@ func TestApp(t *testing.T) {
 		uniqueSku := fmt.Sprintf("sku-%d", time.Now().UnixNano())
 
 		for i := 0; i < 100; i++ {
-			resp := addStock(t, nc, uniqueSku, 25)
+			resp := addStock(t, nc, compiler, uniqueSku, 25)
 			require.True(t, resp.OK)
 			assert.Equal(t, uniqueSku, *resp.ProductSKU)
 			assert.Equal(t, 25*(i+1), *resp.Quantity)
@@ -63,7 +67,7 @@ func TestApp(t *testing.T) {
 		// sku doesn't conform to the schema http://github.com/davidoram/beaker/schemas/product-sku.json
 		uniqueSku := fmt.Sprintf("$$-%d", time.Now().UnixNano())
 
-		resp := addStock(t, nc, uniqueSku, 25)
+		resp := addStock(t, nc, compiler, uniqueSku, 25)
 		require.False(t, resp.OK)
 		require.Contains(t, *resp.Error, fmt.Sprintf("product-sku': '%s' does not match pattern", uniqueSku))
 	})
@@ -72,8 +76,8 @@ func TestApp(t *testing.T) {
 
 		uniqueSku := fmt.Sprintf("sku-%d", time.Now().UnixNano())
 
-		addStock(t, nc, uniqueSku, 10)
-		resp := removeStock(t, nc, uniqueSku, 7)
+		addStock(t, nc, compiler, uniqueSku, 10)
+		resp := removeStock(t, nc, compiler, uniqueSku, 7)
 
 		require.True(t, resp.OK)
 		assert.Equal(t, uniqueSku, *resp.ProductSKU)
@@ -84,8 +88,8 @@ func TestApp(t *testing.T) {
 
 		uniqueSku := fmt.Sprintf("sku-%d", time.Now().UnixNano())
 
-		addStock(t, nc, uniqueSku, 10)
-		resp := removeStock(t, nc, uniqueSku, 11)
+		addStock(t, nc, compiler, uniqueSku, 10)
+		resp := removeStock(t, nc, compiler, uniqueSku, 11)
 
 		require.False(t, resp.OK)
 		assert.Equal(t, fmt.Sprintf("stock level cannot go below zero for %s", uniqueSku), *resp.Error)
@@ -110,8 +114,8 @@ func TestApp(t *testing.T) {
 		require.NoError(t, err)
 		defer sub.Unsubscribe() // nolint:errcheck
 
-		addStock(t, nc, uniqueSku, 11)
-		resp := removeStock(t, nc, uniqueSku, 5)
+		addStock(t, nc, compiler, uniqueSku, 11)
+		resp := removeStock(t, nc, compiler, uniqueSku, 5)
 
 		require.True(t, resp.OK)
 
@@ -123,7 +127,7 @@ func TestApp(t *testing.T) {
 		// sku doesn't conform to the schema http://github.com/davidoram/beaker/schemas/product-sku.json
 		uniqueSku := fmt.Sprintf("^%%-%d", time.Now().UnixNano())
 
-		resp := removeStock(t, nc, uniqueSku, 25)
+		resp := removeStock(t, nc, compiler, uniqueSku, 25)
 		require.False(t, resp.OK)
 		require.Contains(t, *resp.Error, fmt.Sprintf("product-sku': '%s' does not match pattern", uniqueSku))
 	})
@@ -132,21 +136,21 @@ func TestApp(t *testing.T) {
 
 		uniqueSku := fmt.Sprintf("sku-%d", time.Now().UnixNano())
 
-		resp := getStock(t, nc, uniqueSku)
+		resp := getStock(t, nc, compiler, uniqueSku)
 		require.True(t, resp.OK)
 		assert.Equal(t, uniqueSku, *resp.ProductSKU)
 		assert.Equal(t, 0, *resp.Quantity)
 
-		addStock(t, nc, uniqueSku, 133)
+		addStock(t, nc, compiler, uniqueSku, 133)
 
-		resp = getStock(t, nc, uniqueSku)
+		resp = getStock(t, nc, compiler, uniqueSku)
 		require.True(t, resp.OK)
 		assert.Equal(t, uniqueSku, *resp.ProductSKU)
 		assert.Equal(t, 133, *resp.Quantity)
 
-		removeStock(t, nc, uniqueSku, 131)
+		removeStock(t, nc, compiler, uniqueSku, 131)
 
-		resp = getStock(t, nc, uniqueSku)
+		resp = getStock(t, nc, compiler, uniqueSku)
 		require.True(t, resp.OK)
 		assert.Equal(t, uniqueSku, *resp.ProductSKU)
 		assert.Equal(t, 2, *resp.Quantity)
@@ -157,14 +161,14 @@ func TestApp(t *testing.T) {
 		// sku doesn't conform to the schema http://github.com/davidoram/beaker/schemas/product-sku.json
 		uniqueSku := ""
 
-		resp := getStock(t, nc, uniqueSku)
+		resp := getStock(t, nc, compiler, uniqueSku)
 		require.False(t, resp.OK)
 		require.Contains(t, *resp.Error, fmt.Sprintf("product-sku': '%s' does not match pattern", uniqueSku))
 	})
 
 }
 
-func addStock(t *testing.T, nc *nats.Conn, uniqueSku string, quantity int) schemas.StockAddResponse {
+func addStock(t *testing.T, nc *nats.Conn, compiler *jsonschema.Compiler, uniqueSku string, quantity int) schemas.StockAddResponse {
 	// Call the stockAddHandler with a valid request
 	req := schemas.StockAddRequest{
 		ProductSKU: uniqueSku,
@@ -175,6 +179,7 @@ func addStock(t *testing.T, nc *nats.Conn, uniqueSku string, quantity int) schem
 
 	msg, err := nc.RequestWithContext(t.Context(), "stock.add", reqBytes)
 	require.NoError(t, err)
+	validateJSON(t, compiler, msg.Data, schemas.StockAddResponseSchema)
 
 	// Parse the response & check values
 	resp := schemas.StockAddResponse{}
@@ -184,8 +189,8 @@ func addStock(t *testing.T, nc *nats.Conn, uniqueSku string, quantity int) schem
 	return resp
 }
 
-func removeStock(t *testing.T, nc *nats.Conn, uniqueSku string, quantity int) schemas.StockRemoveResponse {
-	// Call the stockAddHandler with a valid request
+func removeStock(t *testing.T, nc *nats.Conn, compiler *jsonschema.Compiler, uniqueSku string, quantity int) schemas.StockRemoveResponse {
+	// Call the stockRemoveHandler with a valid request
 	req := schemas.StockRemoveRequest{
 		ProductSKU: uniqueSku,
 		Quantity:   quantity,
@@ -195,6 +200,7 @@ func removeStock(t *testing.T, nc *nats.Conn, uniqueSku string, quantity int) sc
 
 	msg, err := nc.RequestWithContext(t.Context(), "stock.remove", reqBytes)
 	require.NoError(t, err)
+	validateJSON(t, compiler, msg.Data, schemas.StockRemoveResponseSchema)
 
 	// Parse the response & check values
 	resp := schemas.StockRemoveResponse{}
@@ -204,7 +210,7 @@ func removeStock(t *testing.T, nc *nats.Conn, uniqueSku string, quantity int) sc
 	return resp
 }
 
-func getStock(t *testing.T, nc *nats.Conn, uniqueSku string) schemas.StockGetResponse {
+func getStock(t *testing.T, nc *nats.Conn, compiler *jsonschema.Compiler, uniqueSku string) schemas.StockGetResponse {
 	// Call the stockGetHandler with a valid request
 	req := schemas.StockGetRequest{
 		ProductSKU: uniqueSku,
@@ -214,6 +220,7 @@ func getStock(t *testing.T, nc *nats.Conn, uniqueSku string) schemas.StockGetRes
 
 	msg, err := nc.RequestWithContext(t.Context(), "stock.get", reqBytes)
 	require.NoError(t, err)
+	validateJSON(t, compiler, msg.Data, schemas.StockGetResponseSchema)
 
 	// Parse the response & check values
 	resp := schemas.StockGetResponse{}
@@ -225,12 +232,24 @@ func getStock(t *testing.T, nc *nats.Conn, uniqueSku string) schemas.StockGetRes
 
 func runNatsServerOnPort(t *testing.T, port int) *server.Server {
 	t.Helper()
-	opts := natsserver.DefaultTestOptions
+	opts := testserver.DefaultTestOptions
 	opts.Port = port
 	return runNatsServerWithOptions(t, &opts)
 }
 
 func runNatsServerWithOptions(t *testing.T, opts *server.Options) *server.Server {
 	t.Helper()
-	return natsserver.RunServer(opts)
+	return testserver.RunServer(opts)
+}
+
+func validateJSON(t *testing.T, compiler *jsonschema.Compiler, jsonData []byte, schemaRef string) {
+	t.Helper()
+	schema, err := compiler.Compile(schemaRef)
+	require.NoError(t, err)
+	require.NotNilf(t, schema, "schema %s should not be nil", schemaRef)
+	var data any
+	data, err = jsonschema.UnmarshalJSON(bytes.NewReader(jsonData))
+	require.NoError(t, err)
+	err = schema.Validate(data)
+	require.NoError(t, err)
 }

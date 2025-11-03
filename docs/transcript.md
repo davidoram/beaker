@@ -754,10 +754,34 @@ Note you might have to give NewRelic a few seconds to ingest process and display
 Click on the `test-otel` name and you get a list of traces - we only have 1, each with the name, when it occured, the number of entities, spans and errors. Lets click on one and view some details. The one yellow bar shows our trace which has a single span. The trace is a single logical operation, and spans are sub-steps.  Later on we will see some example but for now our operation has a span with 1 trace.  Its 1s long, and when I click on it I can see more information pop up in a panel to the right. This panel has several tabs, the first is called "performance", which isn't useful for our test case but might be when we have thousands of spans and we are looking at one in particular. It might help us see some trend - eg: this span might take significantly longer than the average. Click on the next tab called "attribnutes" this is a key one.  When we create traces and spans we can attach attrinutes which are user defined data to the span to capture extra meaning. OTEl published [semantic conventions[(https://opentelemetry.io/docs/specs/semconv/) which has a [go library](https://pkg.go.dev/go.opentelemetry.io/otel@v1.38.0/semconv/v1.37.0) with hundreds of methods to help you follow the correct naming conventions. For example if you want to follow the convention for setting your "service name" you would use the https://pkg.go.dev/go.opentelemetry.io/otel@v1.38.0/semconv/v1.37.0#ServiceName function. Like other parts of the system, following the conventions established by the OTEL standard means that our system will work with a wide variety of tools. If we use the standard names, then we increase the chance of our system working with standard tools. I've added a couple of attributes - the first is `deployment.environment` which is set to `codespace`, `service.version` set to `0.1.0`.  The `trace.id` is an important attrinute that is added by the Otel system. Thats the unique identifier for a trace. This can be useful to send back with every response, in fact we do that win the `respondJSON` function of request scope that we use to send all responses back. We send the trace.id back in a NATS message header called `traceparent` which minics the standard HTTP header name that the W3C have decided on to transmit traces back in.  Now we can ask our customers to record that value when they get API problems, and send it to us, which we can use to find the exact request in our telemetry system.  Note I'm simflifying things a bit here because in a high volume system it may not be practiucal or economic to save every trace.  Instead you might want to **sample** sucesfull requests and store all **error** responses. This is where the collector comes in because it allows you to set and change these policies to suit your situation without ever touching youre application.
 
 Right so lets call our API and look at the telemetry. The `makefile` has some targets we can run that exercise the API, lets run them as follows:
-- `make test-add`
+- `make test-add`. This Makefile target uses the `nats` cli tool to act as user `NATS_CREDS_CALLER`, send a request to `stock.add` Subject with payload  `'{"product-sku": "coffee-cup", "quantity": 10}'`.  The `--translate` option will send the response from this API through the `jq` command line tool and show the output in color so its easier for us to read.  When the response comes back we can see it includes some text lines before the JSON response.  It tells us the subject where the request is sent, the rtt (round trip time), which in my case is 386ms which is pretty slow, and finally the `traceparent` header value.   Lets lookup that trace in New Relic.
 
+This trace looks a little different from the test traces we examined earlier. First of all the 'entity map' diagram shows our 'beaker' app and 'postgres'. A newcomer looking at this knows that this trace interaced through the 'beaker' application which interacts with a database.  Clicking the expand all button displays all teh spans that make up this trace. remember a span is a smaller pice of work inside a trace. Lets look at them individually:
+- 'setup db conn' wraps two child spans that acquire a database connection and begin a transaction. Together this takes 0.76ms - pretty fast
+- 'validate JSON' Performs the JSON Schema validation and it takes 0.4ms - really fast
+- 'decode request' which converts the JSON string to go structs is even faster at 0.02ms
+- 'add stock' wraps a query, that INSERTs into inventory.  The query itself has two child spans. Clicking on the query shows the SQL to teh right. Executing this query takes around 1.4ms
+- Committing the query takes 0.9ms.
+- Building the response is very fast at < 0.01ms
+- Sending the response takes 0.05ms
 
+OK, What does this trace tell us?
+- The server side time to process this is approx 4ms - which is fast
+- There are no errors.
+- About 50% of the time is spent in database operations. 
 
+But from the clients perspective it took 319ms - so whats going on in that balance of about 315ms thats not taken up in out API.
+
+- The client is starting a TCP connection to the Synadia NATS global service endpoint
+- Synadia NATS has to authenticate and authorize the API call
+- The message is send
+- The response is decoded and displayed.
+
+Remember that our client and server are a very low powered codespace environment. For a service like this running on AWS with a separate OTEL collector,  I would expect to be getting 10ms API reponses. 
+
+OK, great so now we can see some basic information about our API calls.
+
+Telemetry is a big field. In fact we could make a whole video series on telemetry alone. For example the system could emit a `gauge` that show inventory levels for popular items. Then you could build an alerting system if there is a run on stock so that NewRelic could detect that and alert you independently. We have just touched on the basics with telemetry so I hope it gives you a taste for integrating with these kinds of systems.
 
 OK so that wraps up the 'Telemetry' discussion   Thanks for listening , and remember "Iron sharpens iron, and one man sharpens another.”. 
 
@@ -771,7 +795,7 @@ If you are new to this video series video series, I encourage you take go back a
 
 OK, today we will be covering off the "Microservice implementation". If you want to follow along point your browser at https://github.com/davidoram/beaker, otherwise you can just watch me cover all the code.
 
-In previous episodes we have covered our database layer, how we use Postgres to store data and sqlc to write boilerplate access code, we've covered off the adoption of JSON Schema as a format for describing our API requests and responses. That video also covered off data validation, and also how we unmarshall JSON text -> go structures so our app can use it and then later marshall from go structs back to JSON text again so that data can be returned by the system.
+In previous episodes we have covered our database layer, how we use Postgres to store data and sqlc to write boilerplate access code, we've covered off the adoption of JSON Schema as a format for describing our API requests and responses. That video also covered off data validation, and also how we unmarshall JSON text -> go structures so our app can use it and then later marshall from go structs back to JSON text again so that data can be returned by the system. In the last video we spoke about telemetry and how we use it to get insights to our systems runtime behaviour.
 
 In todays video, we will draw those threads togteher and show how the NATS service framework can be used to build microservices.  
 

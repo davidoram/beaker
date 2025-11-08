@@ -686,7 +686,7 @@ Creates a URI mapping — so when the schema references something like
 `"$ref": "http://github.com/davidoram/beaker/schemas/product-sku.json"`,
 `jv` knows to resolve that reference locally from the `schemas` directory instead of fetching it over the network.
 
-OK so when you run `make schema-lint` it should say "All schemas are valid", but lets double check that by making sure it picks up an error.  Lets edit the `schemas/stock-add.request.json` and introduce a typo into the `product-sku` $ref. When you re-run `make sdhema-lint` it will fail eith an error.
+OK so when you run `make schema-lint` it should say "All schemas are valid", but lets double check that by making sure it picks up an error.  Lets edit the `schemas/stock-add.request.json` and introduce a typo into the `product-sku` $ref. When you re-run `make schema-lint` it will fail eith an error.
 
 So how do we perform checks inside the API at runtime.  It involves the following steps.
 - Creating JSON Schema files
@@ -699,14 +699,14 @@ Lets start going through the steps.
 
 We have already seen the JSON Schema file definitions, for example `schemas/stock-add.request.json`. We factor out any common types into their own files so we can re-use them - like we did for `schemas/product-sku.json`
 
-Next lets look at how the JSON Schema compiler is constructed. Open the `internal/utility/schema_loader.go` and we are going to walk through the `NewJSONSchemaCompiler` method.  It takes a context (which is unused - my bad), and a schemaDir, the folder that holds the schema files.  We pass that to the `NewLoader` function passing a map from the url prefixes to the directory that holds the schemas with that prefix.  The loaders job is to resolve schemas as its validating. When the schame compiler needs a specific schema as identiifed by its id, it asks the Loader to retrieve it.  Our Loader will load our applications schemas from that directory, but then it will also the HTTP loader to retrieve schemas from across the internet.
+Next lets look at how the JSON Schema compiler is constructed. Open the `internal/utility/schema_loader.go` and we are going to walk through the `NewJSONSchemaCompiler` method.  It takes a context (which is unused - my bad), and a schemaDir, the folder that holds the schema files.  We pass that to the `NewLoader` function passing a map from the url prefixes to the directory that holds the schemas with that prefix.  The loaders job is to resolve schemas as its validating. When the schame compiler needs a specific schema as identified by its id, it asks the Loader to retrieve it.  Our Loader will load our applications schemas from that directory, but then it will also the HTTP loader to retrieve schemas from across the internet.
 It creates an HTTPLoader which is a wrapper around the standard library http.Client setting the timeout to 15s. Then we create a FilePrefixLoader which checks if the url prefix matches one thats mapped to a folder, and if so loads that file from the disc & returns it. If no match is found the request is passed on to a jsonschema.SchemeURLLoader which delegates to other loaders based on the url scheme - thats the starting portion of the url eg: `file:` or `http:` etc, so if its a file it will use a FileLoader that simply loads files from the local file system, if its an http/https scheme it delegates to the HTTPLoader which issues an HTTP GET request to retrieve the file & return it.
 
-Now a little sidebar here. You might be thinking hey I don't see you caching any of these requests. Thats right. I always avoid caching until is proving to be a problem. Why? Because caching is hard. Caching is hard because you’re trading correctness for speed — and keeping that trade fair is tricky. You need to know when the truth chances (invalidating the cache), You need to know how long to cache for (TTL), in a distributed like the web there are many layers of caches - which layer is lying to us. All this makes for a tricky debugging scenario.
+Now a little sidebar here. You might be thinking hey I don't see you caching any of these requests. Thats right. I always avoid caching until is proving to be a problem. Why? Because caching is hard. Caching is hard because you’re trading correctness for speed — and keeping that trade fair is tricky. You need to know when the truth changes (invalidating the cache), You need to know how long to cache for (TTL), in a distributed like the web there are many layers of caches - which layer is lying to us. All this makes for a tricky debugging scenario. I allways like to verify if what I have is "fast enough" before I start looking at caching. "Do the simple things first; God handles the impossible refactors.”
 
 OK, back to the `NewJSONSchemaCompiler` function, now that the loader is created, we create a NewCompiler, and attach the loader. Then we call `AssertContent` which means if the schema says this field should contain a specific type of encoded content (like base64 data or a certain media type), double-check that it really does, and `AssertFormat` which means if the schema says this field must be an email address, make sure it really looks like one — not just any string. Some JSON Schema compilers treat these things as hints but don't enforce them, and we want to be as strict as possibile with our inputs. Lastly we tell the compiler to use the latest draft version of JSON Schema. 
 
-When we want to use the compiler we will call  the `ValidateJSON` function in the internal/api/request_scope.go file. The first few lines capture telemetry data, which is important to know later - we will look at that in a later episode. Incideently capturing precicisely how long an operation like schema validation takes allows us to make data driven informed decisions. If the idea of caching schemas comes up you can look at the telemetry and guage exactly how loing is spent doing this work and decide if you need to optimize that part of the code path or not. Don't be fooled into thinking faster is better everywhere, sometimes you trade-off so much complexity to gain a millisecond or two it may not be worth it when you can look elsewhere for easier optimizations.
+When we want to use the compiler we will call  the `ValidateJSON` function in the internal/api/request_scope.go file. The first few lines capture telemetry data, which is important to know later - we will look at that in a later episode. Incidently capturing precicisely how long an operation like schema validation takes allows us to make data driven informed decisions. If the idea of caching schemas comes up you can look at the telemetry and guage exactly how loing is spent doing this work and decide if you need to optimize that part of the code path or not. Don't be fooled into thinking faster is better everywhere, sometimes you trade-off so much complexity to gain a millisecond or two it may not be worth it when you can look elsewhere for easier optimizations.
 
 OK, we check if rs.HasError - lets come back to that in future. We next check id the jsonData is emapty - thats immediately an error.  If the compiler hasn't been passed in thats also an error.  Finally we get to ask the compiler to `Compile` a schema for us based on the schema name we have asked for.  Again this is another potential place for caching, but I don't need to so I keep the code path simple. If the schema is nil, thats an error, but if not we use the function that the library provides to unmarshall the JSON, again checking for errors. Now we get to the important part. The call to `schema.Validate(data)` - this takes the JSON, and validates it against the schema returning an error if it doesn't comply. Its a simple as that one call to perform all the multitude of validations that your JSON Schemas can apply.
 
@@ -718,13 +718,13 @@ The key point I'm making is that we move validation from code into configuration
 
 Right lets assume our incoming data matches the JSON Schema, how do we work with in inside the `go` applictaion code.  Thats actually pretty simple, we marshal the data from JSON into a go struct using the standard library. 
 
-Lets take the example of our incoming 'stock add' request. The go struct definied in file `schemas/stock_add_request.go` and its super simple. Open up that file and you will see near the top we define a constant representing the schema `StockAddRequestSchema`. We will be using that later in the application code when we ask the jv library to validate some JSON against a specific schema.  Next it defines the `StockAddRequest` struct which contains the same fields we defined in the JSON schema file. Whats important to note is the use of structure tags. Those are the notataions inside the backticks to the right of each field, and they tell the standard librarys json module how to map JSON into the struct (called unmarshalling), and from a struct back out to JSON (called marshalling). You can learn more about struct tags in go here https://go.dev/wiki/Well-known-struct-tags. Its something that your code can use to attach metadata to struct fields that can be extracted at runtime.
+Lets take the example of our incoming 'stock add' request. The go struct definied in file `schemas/stock_add_request.go` and its super simple. Open up that file and you will see near the top we define a constant representing the schema `StockAddRequestSchema`. We will be using that later in the application code when we ask the jv library to validate some JSON against a specific schema.  Next it defines the `StockAddRequest` struct which contains the same fields we defined in the JSON schema file. Whats important to note is the use of structure tags. Those are the notataions inside the backticks to the right of each field, and they tell the standard librarys json module how to map JSON into the struct (called unmarshaling), and from a struct back out to JSON (called marshaling). You can learn more about struct tags in go here https://go.dev/wiki/Well-known-struct-tags. Its something that your code can use to attach metadata to struct fields that can be extracted and used at runtime.
 
 Once we have marshaled the data into a struct its able to be used in the application code.  
 
-Once the application has finished working with the data , we need to trasform the go struct back to JSON and return it to the called. 
+Once the application has finished working with the data , we need to trasform the go struct back to JSON and return it to the caller. 
 
-Once we populate a go structure representing a response like `schemas/stock_add_response.go` with the data it needs,  we marshal it from go struct -> JSON and return the response. This is done through the standard library function json.Marshal, which uses the same struct tags used by the unmarshalling process, but this time it converts the data in the struct tag to JSON representation.
+Once we populate a go structure representing a response like `schemas/stock_add_response.go` with the data it needs,  we marshal it from go struct -> JSON and return the response. This is done through the standard library function json.Marshal, which uses the same struct tags used by the unmarshaling process, but this time it converts the data in the struct tag to JSON representation.
 
 The return structure shows an interesting feature in the go struct tags. You will notice that the `ProductSKU,Quantity,Error` are all pointers and the struct tags might say "ProductSKU *string `json:"product-sku,omitempty"`"  The `omitempty` directive will tell the marshall process to skip that field if its empty or nil. It will become more obvious when we look at the guts of the API handlers in the next video how we can utilise this to make our life easier.
 
@@ -737,7 +737,7 @@ So lets take stock of what we have learned.
 
 OK so that wraps up the 'data layer and API' discussion   Thanks for listening , and remember "Iron sharpens iron, and one man sharpens another.”. 
 
-Hit the subscribe button if you wnat to be notified when the next video is out. The next video in the series we will discuss Telemetry. I'm looking forward to seeing you then.
+Hit the subscribe button if you want to be notified when the next video is out. The next video in the series we will discuss Telemetry. I'm looking forward to seeing you then.
 
 
 # Episode 6
@@ -752,7 +752,7 @@ I've touched on Telemetry before but in this episode we are going to do more of 
 
 Telemetry is a fancy word that means 'measuring something' and sending it somewhere for monitoring.  Think of in a hospital the heart monitor attached to a patent is sending a stream of data to the nursing station.
 
-Its a bit like that with our application. We want to be sure that our system is online and responding correctly, so that we can serve our customers well.  Some systems define these requirements more formally in something called 'service level agreements' that might state the response times for an API, eg: 95% of responses in 1s and 99% in 2s.  So we can use telemetry to measure that capture that particular metric and grade our system against its requirement.  Like the nurse monitoring the patient we need that information to be available and measurable to evaluate their health.  Another thing that a heart monitor might do is trigger an alarm when a the heart rate goes outside of the normall range. The alarm might be an audible alert designed to draw attention quickly to an urgent problem.  We can use the same technique when our systems are behaving outside their expected bounds.
+Its a bit like that with our application. We want to be sure that our system is online and responding correctly, so that we can serve our customers well.  Some systems define these requirements more formally in something called 'service level agreements' that might state the response times for an API, eg: 95% of responses in 100ms and 99% in 1s.  So we can use telemetry to measure that capture that particular metric and grade our system against its requirement.  Like the nurse monitoring the patient we need that information to be available and measurable to evaluate their health.  Another thing that a heart monitor might do is trigger an alarm when a the heart rate goes outside of the normall range. The alarm might be an audible alert designed to draw attention quickly to an urgent problem.  We can use the same technique when our systems are behaving outside their expected bounds.
 
 We are using the standard called Open Telemetry that allows us to write our code to a vendor independent standard, and then choose from a number of vendors based on price, usability and other factors.
 
@@ -760,25 +760,90 @@ Our architecture here is that we will have out application send telemetry direct
 
 Right so lets talk about the vendor I've chosen. We are going to sign up for New Relic using the instructions provided [here](./otel.md#setup-with-newrelic).  NewRelic, and many other vendors kindly offer a free account which is very generous, and allows you to perform some testing 
 
-OK so that wraps up the 'Telemetry' discussion   Thanks for listening , and remember "Iron sharpens iron, and one man sharpens another.”. 
 
-Hit the subscribe button if you wnat to be notified when the next video is out. The next video in the series we will pull the threads together and walk through the microservice API implementation.
+If you are new to this video seBefore we run it lets take a look at that target.  It executes the `otel-cli` tool, which is a third party tool that provides the abaility to integrate with an OTEL back end. You will notice that at the top of the Makefile we setup an OTEL_ENV which configures all the standard environment variables that OTEL tools use. This includes the endpoint of the NewRelic back end service, the API key, the service name, and attributes to pass with each trace. The `otel-cli` tool when you use the `exec` option measures the time it takes to run the command. It also notes the commands return value, and if its non-zero it will record that as an error on the span. Run `make test-otel` a and also run `make test-otel-error` so we can simulate some traces.  The major difference between these targets, is the command it runs.  The `test-otel` runs the unix sleep command to sleep for a second, and the `` target runs the `false` command which simulates an error because it always returns non-zero.  
+
+Note you might have to give NewRelic a few seconds to ingest process and display your traces.  This is normal.  On the `traces` page if defaults to showing us traces from the last 30 mins, so that will include our traces, but you can adjust thatest-otel-errort and go back in time. It shows the number of traces, spans, duration and errors which get little graphs. We get some good infomation on this front page showing errors, average trace duration, etc.
+
+Click on the `test-otel` name and you get a list of traces - we only have 1, each with the name, when it occured, the number of entities, spans and errors. Lets click on one and view some details. The one yellow bar shows our trace which has a single span. The trace is a single logical operation, and spans are sub-steps.  Later on we will see some example but for now our operation has a span with 1 trace.  Its 1s long, and when I click on it I can see more information pop up in a panel to the right. It starts with some "performance", which aren't useful for our test case but might be when we have thousands and we are looking at one. It might help us see some trend - eg: this span might take significantly longer than the average. Click on the next tab called "attribnutes" this is a key one.  When we create traces and spans we can attact attrinutes which is user defined data to the span to capture extra meaning. OTEl published [semantic conventions[(https://opentelemetry.io/docs/specs/semconv/) which has a [go library](https://pkg.go.dev/go.opentelemetry.io/otel@v1.38.0/semconv/v1.37.0) with hundreds of methods to help you follow the correct naming conventions. For example if you want to follow the convention for setting your "service name" you would use the https://pkg.go.dev/go.opentelemetry.io/otel@v1.38.0/semconv/v1.37.0#ServiceName function. Like other parts of the system, following the conventions established by the OTEL standard means that our system will work with a wide variety of tools. If we use the standard names, then we increase the chance of our system working with standard tools.
+
+We are now going to run our service and examine a trace.  I know we haven't looked at that code yet but we will get to that in the next video.  For now its important for us to see what a real API call/response looks like so we have a sense for what to look out for.
+
+
+We are going to run  Makefile targets that use the `nats` cli tool to exercise the endpoints. They authenticate as a stabdard caller, send a request and cpature the response, formatting that response nicely through the `jq` tool so the output in color so its easier for us to read.  
+
+Lets run `make run` to start our API server in one terminal. In a new terminal run `make test-get` to call the `stock.get` endpoint.
+
+When the response comes back we can see it includes some text lines before the JSON response.  It tells us the subject where the request is sent, the rtt (round trip time), which in my case is ~300~ms which is pretty slow, and finally the `traceparent` header value.   
+
+Lets open NewRelic and find the trace using that **traceparent** value
+
+This trace looks a little different from the test traces we examined earlier. First of all the 'entity map' diagram shows our 'beaker' app and 'postgres'. A newcomer looking at this knows that this trace interaced through the 'beaker' application which interacts with a database.  Clicking the expand all button displays all the spans that make up this trace. remember a span is a smaller pice of work inside a trace. Lets look at them individually:
+- 'setup db conn' wraps two child spans that acquire a database connection and begin a transaction. Together this takes 0.76ms - pretty fast
+- 'validate JSON' Performs the JSON Schema validation and it takes 0.4ms - really fast
+- 'decode request' which converts the JSON string to go structs is even faster at 0.02ms
+- 'add stock' wraps a query, that INSERTs into inventory.  The query itself has two child spans. Clicking on the query shows the SQL to the right. Executing this query takes around 1.4ms
+- Committing the query takes 0.9ms.
+- Building the response is very fast at < 0.01ms
+- Sending the response takes 0.05ms
+
+OK, What does this trace tell us?
+- The server side time to process this is approx 4ms - which is fast
+- There are no errors.
+- About 50% of the time is spent in database operations. 
+
+But from the clients perspective it took 319ms - so whats going on in that balance of about 315ms thats not taken up in out API.
+
+- The client is establishing a TCP connection to the Synadia NATS global service endpoint
+- Synadia NATS has to authenticate and authorize the API call
+- The message is send
+- The response is decoded and displayed.
+
+Remember that our client and server are a very low powered codespace environment. In a production environment we can get better performance by:
+- Running our API server in the clous (say AWS) rather than in a codespace
+- Running a separate OTEL collector
+- Using a high performance Postgres server hosted in the cloud say AWS
+- Using a long running Client connection, rather than reconnecting each API call, so the cost of AuthN is amortized across all calls.
+
+I would expect to be getting < 10ms API reponses for something like this in a production setup.
+
+OK, great so now we have some basic information about our API calls.
+
+Lets talk about when things go wrong.  Back to the analogy, where the nurse looking after the pateint. By regularly looking at traces we can see how our system is performing over time.  But now we want immediate action when some important event occurs, ie: when the alarm goes off.
+
+
+In our context a few critical events can occur:
+- One scenario is when we our system has an error, which we simulated earlier with our `test-otel-error` Makefile. 
+  - In this case we definately want NewRelic to alert us when any traces come through that have been marked as having an "error". Systems like NewRelic have integrations that allow you and your team to receieve alerts, through email, slack or teams. Or maybe even open tickets for you make them visivle with your other work.
+- The other might be a requirement from the business, it might be of great interest when stock levels fall below a threshold, because we need to re-stock those items.  
+  - One option is that you could handle those things by recording metrics in our Telemetry system. Thats a different part of Open Telemetry that I'm not going to go into with this series, but there is plently of information about that online.
+  - Another option is that our application can deliver its own feed of events that our customers, 
+  
+  TODO CONTINUE HERE
+  
+    system saw that when the run out of stock.  We can see that when the `stock-remove` endpoint is called and stock levels fall below 10.  Lets simulate that and see what happens. Run `make test-remove` a few times until you see a response that says:
+
+```json
+{
+  "ok": false,
+  "error": "stock level cannot go below zero for coffee-cup"
+}
+```
+
+
+OK so that wraps up our 'introduction to Telemetry discussion. We will be touching on that a bit more in future episodes.  Thanks for listening , and remember "Iron sharpens iron, and one man sharpens another.”. 
+
+Hit the subscribe button if you want to be notified when the next video is out. The next video in the series we will finally getting into the guts of how our microservice pulls all these threads together and implements our API handlers. I'm looking forward to seeing you then.
+
+I encourage you take go back and listen to previous videos as they cover some context to what we are covering today.
 
 # Episode 7
 
 Hi and welcome to my series on "Production grade system development". My name is Dave Oram and I'll be your gude as we todays espisode which covers our "Microservice implementation".
 
-If you are new to this video seBefore we run it lets take a look at that target.  It executes the `otel-cli` tool, which is a third party tool that provides the abaility to integrate with an OTEL back end. You will notice that at the top of the Makefile we setup an OTEL_ENV which configures all the standard environment variables that OTEL tools use. This includes the endpoint of the NewRelic back end service, the API key, the service name, and attributes to pass with each trace. The `otel-cli` tool when you use the `exec` option measures the time it takes to run the command. It also notes the commands return value, and if its non-zero it will record that as an error on the span. rRun `make test-otel` a and also run `make test-otel-error` so we can simulate some traces.  The major difference between these targets, is the command it runs.  The `test-otel` runs the unix sleep command to sleep for a second, and the `test-otel-error` target runs the `false` command which simulates an error because it always returns non-zero.  
-
-
-Note you might have to give NewRelic a few seconds to ingest process and display your traces.  This is normal.  On the `traces` page if defaults to showing us traces from the last 30 mins, so that will include our traces, but you can adjust that and go back in time. It shows the number of traces, spans, duration and errors which get little graphs. We get some good infomation on this front page showing errors, average trace duration, etc.
-
-Click on the `test-otel` name and you get a list of traces - we only have 1, each with the name, when it occured, the number of entities, spans and errors. Lets click on one and view some details. The one yellow bar shows our trace which has a single span. The trace is a single logical operation, and spans are sub-steps.  Later on we will see some example but for now our operation has a span with 1 trace.  Its 1s long, and when I click on it I can see more information pop up in a panel to the right. It starts with some "performance", which aren't useful for our test case but might be when we have thousands and we are looking at one. It might help us see some trend - eg: this span might take significantly longer than the average. Click on the next tab called "attribnutes" this is a key one.  When we create traces and spans we can attact attrinutes which is user defined data to the span to capture extra meaning. OTEl published [semantic conventions[(https://opentelemetry.io/docs/specs/semconv/) which has a [go library](https://pkg.go.dev/go.opentelemetry.io/otel@v1.38.0/semconv/v1.37.0) with hundreds of methods to help you follow the correct naming conventions. For example if you want to follow the convention for setting your "service name" you would use the https://pkg.go.dev/go.opentelemetry.io/otel@v1.38.0/semconv/v1.37.0#ServiceName function. Like other parts of the system, following the conventions established by the OTEL standard means that our system will work with a wide variety of tools. If we use the standard names, then we increase the chance of our system working with standard tools.
-, I encourage you take go back and listen to previous videos as they cover some context to what we are covering today.
-
 OK, today we will be covering off the "Microservice implementation". If you want to follow along point your browser at https://github.com/davidoram/beaker, otherwise you can just watch me cover all the code.
 
-In previous episodes we have covered our database layer, how we use Postgres to store data and sqlc to write boilerplate access code, we've covered off the adoption of JSON Schema as a format for describing our API requests and responses. That video also covered off data validation, and also how we unmarshall JSON text -> go structures so our app can use it and then later marshall from go structs back to JSON text again so that data can be returned by the system.
+In previous episodes we have covered our database layer, how we use Postgres to store data and sqlc to write boilerplate access code, we've covered off the adoption of JSON Schema as a format for describing our API requests and responses. That video also covered off data validation, and also how we unmarshall JSON text -> go structures so our app can use it and then later marshall from go structs back to JSON text again so that data can be returned by the system. Finally we touched on Telemetry and how we use that to record system behaviour.
 
 In todays video, we will draw those threads togtheer and show how the NATS service framework can be used to build microservices.  
 
@@ -796,43 +861,6 @@ OK, so lets layer on our scenario.
   - "stock-remove"
   - "stock-get"
 
-Each one of our endpoints takes a request (its input data), and return a response (. This Makefile target uses the `nats` cli tool to act as user `NATS_CREDS_CALLER`, send a request to `stock.add` Subject with payload  `'{"product-sku": "coffee-cup", "quantity": 10}'`.  The `--translate` option will send the response from this API through the `jq` command line tool and show the output in color so its easier for us to read.  When the response comes back we can see it includes some text lines before the JSON response.  It tells us the subject where the request is sent, the rtt (round trip time), which in my case is 386ms which is pretty slow, and finally the `traceparent` header value.   Lets lookup that trace in New Relic.o
-This trace looks a lottle different from the test traces we examined earlier. First of all the 'entity map' diagram shows our 'beaker' app and 'postgres'. A newcomer looking at this knows that this trace interaced through the 'beaker' application which interacts with a database.  Clicking the expand all button displays all the spans that make up this trace. remember a span is a smaller pice of work inside a trace. Lets look at them individually:
-- 'setup db conn' wraps two child spans that acquire a database connection and begin a transaction. Together this takes 0.76ms - pretty fast
-- 'validate JSON' Performs the JSON Schema validation and it takes 0.4ms - really fast
-- 'decode request' which converts the JSON string to go structs is even faster at 0.02ms
-- 'add stock' wraps a query, that INSERTs into inventory.  The query itself has two child spans. Clicking on the query shows the SQL to the right. Executing this query takes around 1.4ms
-- Committing the query takes 0.9ms.
-- Building the response is very fast at < 0.01ms
-- Sending the response takes 0.05ms
-
-OK, What does this trace tell us?
-- The server side time to process this is approx 4ms - which is fast
-- There are no errors.
-- About 50% of the time is spent in database operations. 
-
-But from the clients perspective it took 319ms - so whats going on in that balance of about 315ms thats not taken up in out API.
-
-- The client is starting a TCP connection to the Synadia NATS global service endpoint
-- Synadia NATS has to authenticate and authorize the API call
-- The message is send
-- The response is decoded and displayed.
-
-Remember that our client and server are a very low powered codespace environment. For a service like this running on AWS with a separate OTEL collector,  I would expect to be getting 10ms API reponses. 
-
-OK, great so now we can see some basic information about our API calls.
-
-Lets talk about when things go wrong.  Back to our analogy of the nurse looking after the pateint. By regularly looking at traces we can see how our system is performing over time.  But now we want immediate action when some critical event occurs.
-In our context a critical event is when we run out of stock.  We can see that when the `stock-remove` endpoint is called and stock levels fall below 10.  Lets simulate that and see what happens. Run `make test-remove` a few times until you see a response that says:
-
-```json
-{
-  "ok": false,
-  "error": "stock level cannot go below zero for coffee-cup"
-}
-```
-The `emitLowStockEvent` function emits a 'low-stock' OTEL Event, when stock levels fall below the threshold of 10.
-utput data)
 
 Before being allowed to call any API we require callers to prove who they are and that they have permission to call our API. We call this Authentication and Authorization.  In our case these functions are delegaated entirely to NATS. NATS has this functionality built in, its well designed by security experts so we can be confident that its a solid founcation to build upon.
 

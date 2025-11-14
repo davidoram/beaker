@@ -817,44 +817,30 @@ In our context a few critical events can occur:
   - In this case we definately want NewRelic to alert us when any traces come through that have been marked as having an "error". Systems like NewRelic have integrations that allow you and your team to receieve alerts, through email, slack or teams. Or maybe even open tickets for you make them visivle with your other work.
 - The other might be a requirement from the business, it might be of great interest when stock levels fall below a threshold, because we need to re-stock those items.  
   - One option is that you could handle those things by recording metrics in our Telemetry system. Thats a different part of Open Telemetry that I'm not going to go into with this series, but there is plently of information about that online.
-  - Another option is that our application can deliver its own feed of events that our customers, 
-  
-  TODO CONTINUE HERE
-  
-    system saw that when the run out of stock.  We can see that when the `stock-remove` endpoint is called and stock levels fall below 10.  Lets simulate that and see what happens. Run `make test-remove` a few times until you see a response that says:
+  - Another option is that our application can deliver its own feed of messages when that happens. In fact thats exactly what we do, when the  `stock-remove` endpoint is called and stock levels fall below 10. It will publish a message to a NATS subject. I'm pointing this out to let you know that telemetry isn't the only way for our system to notify adjacent systems of changes, in fact publishing messages is a powerfull technique for building loosely connected apps that react in real time to changes. But thats a topic for another time.
 
-```json
-{
-  "ok": false,
-  "error": "stock level cannot go below zero for coffee-cup"
-}
-```
-
-
-OK so that wraps up our 'introduction to Telemetry discussion. We will be touching on that a bit more in future episodes.  Thanks for listening , and remember "Iron sharpens iron, and one man sharpens another.”. 
+OK so that wraps up our 'Telemetry discussion. Thanks for listening , and remember "Iron sharpens iron, and one man sharpens another.”. 
 
 Hit the subscribe button if you want to be notified when the next video is out. The next video in the series we will finally getting into the guts of how our microservice pulls all these threads together and implements our API handlers. I'm looking forward to seeing you then.
-
-I encourage you take go back and listen to previous videos as they cover some context to what we are covering today.
 
 # Episode 7
 
 Hi and welcome to my series on "Production grade system development". My name is Dave Oram and I'll be your gude as we todays espisode which covers our "Microservice implementation".
 
-OK, today we will be covering off the "Microservice implementation". If you want to follow along point your browser at https://github.com/davidoram/beaker, otherwise you can just watch me cover all the code.
+If you want to follow along point your browser at https://github.com/davidoram/beaker, otherwise you can just watch me cover all the code.
 
-In previous episodes we have covered our database layer, how we use Postgres to store data and sqlc to write boilerplate access code, we've covered off the adoption of JSON Schema as a format for describing our API requests and responses. That video also covered off data validation, and also how we unmarshall JSON text -> go structures so our app can use it and then later marshall from go structs back to JSON text again so that data can be returned by the system. Finally we touched on Telemetry and how we use that to record system behaviour.
+In previous episodes we have covered our database layer, how we use Postgres to store data and sqlc to write boilerplate access code, we've covered off the adoption of JSON as a data interchange format, and JSON Schema as the schema definition language for describing our API requests and responses. JSON Schema handles our data validation. Go supports unmarshall JSON text -> go structures so our app can use it and then later marshall from go structs back to JSON text again so that data can be returned by the system. Finally we touched on Telemetry and how we use that to record system behaviour.
 
-In todays video, we will draw those threads togtheer and show how the NATS service framework can be used to build microservices.  
+In todays video, we will draw those threads togther and show how the NATS service framework can be used to build microservices.  
 
 The NATS open source system has great docs to help you start building services at https://docs.nats.io/using-nats/developer/services
 
 Lets cover what we mean by a service:
 - A service has a group of logically related functions
-- Services are discoverable. That is there is a way to query the system and discover what services are available
+- Services are discoverable. Meaning there is a way to query the system and discover what services are available
 - Services have one or more endpoints that, which represent operations that the service provides.
 
-OK, so lets layer on our scenario.
+OK, so lets talk specifics for our service.
 - We have one service called "beaker"
 - Indside "beaker" we have three endpoints:
   - "stock-add"
@@ -862,9 +848,9 @@ OK, so lets layer on our scenario.
   - "stock-get"
 
 
-Before being allowed to call any API we require callers to prove who they are and that they have permission to call our API. We call this Authentication and Authorization.  In our case these functions are delegaated entirely to NATS. NATS has this functionality built in, its well designed by security experts so we can be confident that its a solid founcation to build upon.
+Before being allowed to call any API we require callers to prove who they are and that they have permission to call our API. We call this Authentication and Authorization.  In our case these functions are delegated entirely to NATS. NATS has this functionality built in, its well designed by security experts so we can be confident that its a solid foundation to build upon.
 
-**Sidebar** Using NATS to solve our AuthN/AuthZ unburdens us from having to do implement these functions.  This is very hard to implement right, and it feels like a good decision in many circumstances because we are letting experts implement this function. This isn't just my recommendation. Take a look at Microsoft Secure Coding Guidelines, or the OWASP recommendations or RFC 7435. Its generally accepted that its poor practice to roll your own security.  However we must consider the downside.   In NATS that means that although NATS will provide AuthN/AuthZ when a request is routed to our service we have no idea who made the call. We just have to trust that NATS has checked they are allowed to do that.
+**Sidebar** Using NATS to solve our AuthN/AuthZ unburdens us from having to do implement these functions.  This is very hard to implement right, and it feels like a good decision in many circumstances because we are letting experts implement this function. This isn't just my recommendation. Take a look at Microsoft Secure Coding Guidelines, or the OWASP recommendations or RFC 7435. Its generally accepted that its poor practice to roll your own security.  However we must consider the downside.   Although NATS will provide AuthN/AuthZ when a request is routed to our service we have no idea who made the call. We just have to trust that NATS has checked they are allowed to do that.
 
 OK, so back to the NATS Services - lets talk about how they work.  NATS is a messaging system, and as such it supports a request/reply messaging pattern. This coventiently matches exactly what our microservice wants to do, the caller issues a request, the service decodes and processes that request and responds with a reply.
 
@@ -876,7 +862,7 @@ Now that we understand how services get their requests, how do they get their re
 
 If you recall we are going to use Synadia Cloud as our NATS service provider. Our API caller will connect to the hosted NATS as will our microservice, and NATS will route the incoming requests and outgoing responses between them.
 
-So lets head over to Synadia and sig-up for their free plan. Navigate to https://www.synadia.com/cloud and click on the "Get started for free" button. Just make sure you are signing up for "Synadia Cloud" because they have a few product offerings. I signed up through GitHub which allows me to sign-in through that which is super conventient. Once you are in there you will be presented with a list of **Systems** which has only 1 called NGS (NATS Global System), click on that and it shows a list of **Accounts**. 
+So lets head over to Synadia and sign-up for their free plan. Navigate to https://www.synadia.com/cloud and click on the "Get started for free" button. Just make sure you are signing up for "Synadia Cloud" because they have a few product offerings. I signed up through GitHub which allows me to sign-in through that which is super convenient. Once you are in there you will be presented with a list of **Systems** which has only 1 called NGS (NATS Global System), click on that and it shows a list of **Accounts**. 
 
 Each Account is like its own separate namespace or environment. Users live **within** Accounts so they can only connect to that Account. This makes Accounts partiularly useful as a tool for SAAS account separation. By default NATS Users in one Account can't communicate with another Account.  
 
@@ -943,11 +929,11 @@ It first creates a `micro.Config` struct that defines the service.  This informa
 Calling `micro.AddService(...)` registers the service.
 Next we add a `Group` called "stock" which simply groups a bunch of endpoints having the Subject prefix 'stock'.  To that Group we add the `stock.AddEndpoint(...)` handler. The first argument is the suffix to add to the group's subject so "add" becomes "stock.add" Subject.  The next argument is the Handler function that will process requests. The actual handler is implemeted in the `stockAddHandler` func, but I wrap it in a `traceHandler`.  Lets look at the `traceHandler` first - its further down in the same file.  
 
-The traceHandler function wraps a microservice request handler, starting a new OpenTelemetry trace span for each request, logging the API request with context, and then invoking the original handler with the traced context. This enables distributed tracing and contextual logging for each API endpoint call. We will touch on telemetry in the next video, so for now lets focus on the fact that it simply logs each incoming request, then calls the handler.
+The traceHandler function wraps a microservice request handler, starting a new OpenTelemetry trace span for each request, logging the API request with context, and then invoking the original handler with the traced context. This enables distributed tracing and contextual logging for each API endpoint call. We discussed telemetry in the previous video, so for now lets focus on the fact that it simply logs each incoming request, then calls the handler.
 
 Open the [internal/api/add_stock.go](internal/api/add_stock.go) file to see the `stockAddHandler` function.  It has the App struct as its method reciever, so it can access the database, JSON Schema compiler etc.
 
-At the  top of the file we define `stockAddScope` and wqe need a small sidebar to discuss this.
+At the  top of the file we define `stockAddScope` and we need a small sidebar to discuss this.
 
 ```go
 type stockAddScope struct {
@@ -961,7 +947,7 @@ This is a tiny helper type that wraps the generic `requestScope` for the specifi
 It works as follows:
 - First it creates a NewRequestScope, passing in the context, request, NATS conn, and db pool
 - Next it calls defer rs.Close to ensure that when this function returns that request scope will be properly cleaned up
-- Then the request scope  is directed to Validate the incoming request passing in the context, json schema compiler, request data (JSON payload)m and a JSON Schema name.
+- Then the request scope  is directed to Validate the incoming request passing in the context, json schema compiler, request data (JSON payload) and a JSON Schema name.
 - The request is Decoded into a `schemas.StockAddRequest` struct
 - Then AddStock is called with that request, and the response from that used to MakeStockAddResponse
 - Then the changes are  CommitOrRollback
@@ -984,18 +970,18 @@ The `requestScope` struct holds all the state relating to a single API request. 
 
 OK, so when the `newRequestScope` func is called it creates & returns a new requestScope. It calls `setupDbConn` passing the connection pool. Lets take a look at that func. It performs some telemetry - we will skip over that for now. Next it calls `pool.Acquire` which gets a free connection from the connection pool. This is the first thing that can fail with an error so lets look at how errors are handled.  
 
-The overall design philosopy is that the request struct holds the first error that occurs inside its struct.  When ech step of the request processing starts it begins by checking - is there an error on thee request & if there is it skips its normal processing.
+The overall design philosopy is that the request struct holds the first error that occurs inside its struct.  When **each** step of the request processing starts it begins by checking - is there an error on the request & if there is it skips its normal processing.
 
-OK, so when an error occurs we can call one of two functions against the request struct. Either `AddSystemError` if its some error that occurs inside the system that the caller has no control over.  "system" errors are the developers responsibility to monitor for, and fix if needed.  the other kind of error are called "Caller" errors and they are the responsibility of the API caller to fix. There is a function `addCallerError` to add them.
+OK, so when an error occurs we can call one of two functions against the request struct. Either `AddSystemError` if its some error that occurs inside the **system** that the caller has no control over.  "system" errors are the developers responsibility to monitor for, and fix if needed.  The other kind of error are called "**Caller**" errors and they are the responsibility of the API caller to fix. There is a function `addCallerError` to add them.
 
-So in our case if the error is caused when we acqiore a connection from the db connection pool, thats a system error so we call that function.  In turn that calls the `addEror` func that performs some telemetry, creating spans and logs which we will talk about later. Then it simply stores the error on the `requestScope`.
+So in our case if the error is caused when we acquire a connection from the db connection pool, thats a **system** error so we call that function.  In turn that calls the `addEror` func that performs some telemetry, creating spans and logs which we will talk about later. Then it simply stores the error on the `requestScope`.
 
 Back up to the `setupDbConn` lets assume the happy path and we get a connection, it saves the connection in the `requestScope` and proceeds to creates a database Transaction, perform similar error handling and stores that also against the `requestScope`.  Lastly it creates a new `db.Queries` and stores it against the request scope.
 
 So back up to the `newRequestScope` function, we now have populated the request itself from nats. This gives us access to the incoming request data. We have a nats connection  saved (so that later on we can send a response), and we have established a connection to our database through our `queries` field. The queries are using a connection gained from the pool, and wrapped in a db transaction so we can commit or rollback as required later. 
 
-Right lets retuen to the `stockAddHandler` function.
-The first thing we do is defer a call to `requestscope.close` Defer of course means that it will be called when the function returns, so lets lreturn to the close function until we have looked at the rest of the this function.
+Right lets return to the `stockAddHandler` function.
+The first thing we do is defer a call to `requestscope.close` Defer of course means that it will be called when the function returns, so lets return to the close function until we have looked at the rest of the this function.
 
 The first thing we do is call the `validateJSON` func passing in the context, JSON Schema compiler, the request data (the JSON payload in []byte form), and the name of the schema that the payload shoud confiorm to (ie: `"http://github.com/davidoram/beaker/schemas/stock-add.request.json"`).
 
@@ -1006,7 +992,7 @@ validateJSON, creates a span for telemetry purposes.  Then it follows our standa
 - Finally we unmarshall the bytes to an object using the `jsonschema.UnmarshalJSON` function. If its invalid JSON this will return an error.
 - Finally we ask the `schema` object to `Validate` that data, which confirms that the JSON matches the Schema definition.  This is where our library performs all the "heavy lifting" validating all the elements of that JSON for us. If it fails at this step its a "caller" error and we bail, but if it suceeds we have good JSON input and the `validateJSON` method returns.
 
-OK, back to `stockAddHandler`, next we call `decodeRequest`. This function looks a little different from the others because its a **generic** function. I'm passing in `schemas.StockAddRequest` inside square brackets, and that parameter tells the function what type I want returned by the function, it has regular parametrs of a context and the request scope object. Lets look at how it works
+OK, back to `stockAddHandler`, next we call `decodeRequest`. This function looks a little different from the others because its a **generic** function. I'm passing in `schemas.StockAddRequest` inside square brackets, and that parameter tells the function what type I want returned by the function, it has regular parameters of a context and the request scope object. Lets look at how it works.
 
 The`decodeRequest` function is a generic helper that decodes incoming request data into a specified type T, while integrating tracing and error handling:
 
@@ -1041,7 +1027,7 @@ Back to the `stockAddHandler` func, we call `commitOrRollback`. This function wo
 - Then we create a function that will set the request scope transaction to nil when the function returns.
 - Next if the request scope reported an error we issue a rollback, otherwisw we issue a commit. In both cases we add a SystemError if that fails.
 
-. Lets see what that does.
+Lets return now to the `close` function to see what that does.
 The `close` function is written in a "defensive" style because it can't be sure what succeeded earlier, so it doesn't make any assumptions.  So if there was no db connection acquired, it returns. However if we got past that it runs a defer to ensures that the connection will be set to nil on return. Next it calls `commitOrRollback`.
 
 OK so just like `close` this function is written in a defensive style, so it starts by checking if the transaction was ever created, and if not it can return.
@@ -1052,6 +1038,27 @@ Assuming a happy path we will commit the transaction, and add the usual error ha
 
 OK back to the `close` function. Last but not we release the database connection that the request has been using back to the connection pool, by calling the Release function.
 
+This concludes the request / response cycle.
 
-ies together the earlier episodes by showing how the microservice is implemented: it explains using NATS for request/reply service endpoints, wiring JSON Schema validation, OpenTelemetry tracing, and SQLC-backed Postgres transactions inside a per-request requestScope. The episode walks through the lifecycle of a request (validate → decode → DB work → commit/rollback → respond), the role of NATS subjects and credentials (Synadia Cloud), and explains design choices like emitting events only after successful commits and centralizing error handling in the request scope.Itt t
+We have walked through the handler for adding stock. The other handlers work in exactly the same way, so I'll leave it as an exercise for you to take a look at them in your own time.  The remove stock handler has an interesting point of difference in that it published a low stock event when stock levels fall below a threshold, take a look for the `emitLowStockEvent` function to examine how that works.
 
+Because all the handlers follow the same patterns, once you know how one works the others become are easy to understand.  Thats the key to wrirting software thats easy for a team of developers to work on - do the same thing the same way, so that you can dive into different parts of the system and retain familiarity with how things work.
+
+
+Lets see it in action:
+
+Open a terminal and make sure our service is running by `make bootstrap` then `make run`.  Once the server starts up you will see a a message like "INFO beaker is running". In another terminal run some of the following commands:
+
+- `make test-add` Will add stock
+- `make test-remove` Will remove stock
+- `make test-get` Will show current stock levels
+- `make test-events` Will subscribe to the `event.low_stock` NATS subject and show low stock events when they occur.
+
+
+We have covered most but not all of the system. There are unit tests in `internal/api/app_test.go`. These tests run a real NATS server in-process, and connect to a real postgres database, which means that the code being executed is close to production code. These tests avoid mocking out layers by using a real application server and database.
+
+To run the tests run `make test`.  
+
+I've also included a `linter` which checks for common mistakes and errors that the compiler doesn't pick up.  Its really slow to run. I haven't investigated why that is, but thats ok, because I only run it periodically.  Linters are a valuable tool that casts an extra set of eyes over your code.
+
+To make sure my code is always passing, I've included a simple github action in `/workspaces/beaker/.github/workflows/pr-ci.yml` thats triggered whenever we open a pull request. This action checks out the code, build the system, runs the tests and linters.  All these actions happen automatically in the background, and if the tests fail, then my PR will be prevented from being merged.  Its a great way to keep your code in good shape at all times.

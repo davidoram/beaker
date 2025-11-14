@@ -1054,6 +1054,7 @@ Open a terminal and make sure our service is running by `make bootstrap` then `m
 - `make test-get` Will show current stock levels
 - `make test-events` Will subscribe to the `event.low_stock` NATS subject and show low stock events when they occur.
 
+## Rats'n'mice
 
 We have covered most but not all of the system. There are unit tests in `internal/api/app_test.go`. These tests run a real NATS server in-process, and connect to a real postgres database, which means that the code being executed is close to production code. These tests avoid mocking out layers by using a real application server and database.
 
@@ -1062,3 +1063,9 @@ To run the tests run `make test`.
 I've also included a `linter` which checks for common mistakes and errors that the compiler doesn't pick up.  Its really slow to run. I haven't investigated why that is, but thats ok, because I only run it periodically.  Linters are a valuable tool that casts an extra set of eyes over your code.
 
 To make sure my code is always passing, I've included a simple github action in `/workspaces/beaker/.github/workflows/pr-ci.yml` thats triggered whenever we open a pull request. This action checks out the code, build the system, runs the tests and linters.  All these actions happen automatically in the background, and if the tests fail, then my PR will be prevented from being merged.  Its a great way to keep your code in good shape at all times.
+
+# Conclusion.
+
+This concludes this video series on "Production grade system development". We've develoed an API microservice using NATS, Postgres and OpenTelemetry all using the Go language.  We've discussed topics like developement environments, testing, telemetry, performance, and reliability.
+
+I really hope you have got something out of this series and best of luck and blessings to you all in your software development journey. Remember "Iron sharpens iron, and one man sharpens another.”  Thanks for watching
